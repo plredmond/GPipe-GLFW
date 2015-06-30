@@ -28,10 +28,10 @@ newContext contextFormat = do
     return ContextHandle
         { newSharedContext = undefined {- \cf -> do
             (NewSharedContextRet ch) <- await msgC (NewSharedContextMsg cf)
-            return ch -} -- FIXME
+            return ch --} -- FIXME
         , contextDoSync = undefined {- \action -> do
             (ContextDoSyncRet r) <- await msgC (ContextDoSyncMsg action)
-            return r -} -- FIXME
+            return r --} -- FIXME
         , contextDoAsync = dispatch msgC . ContextDoAsyncMsg
         , contextSwap = M.void $ await msgC ContextSwapMsg
         , contextFrameBufferSize = do
