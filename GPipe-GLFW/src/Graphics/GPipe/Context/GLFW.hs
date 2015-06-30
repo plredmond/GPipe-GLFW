@@ -11,7 +11,7 @@ import qualified Graphics.GPipe.Context.GLFW.Internal as Internal
 -- unqualified
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
 
-data Message = M'Stop | M'Request Request
+type Message = Maybe Request
 
 data Request where
     R'Execute :: forall a. IO a -> Maybe (C.MVar a) -> Request
@@ -45,8 +45,8 @@ loop :: C.Chan Message -> IO ()
 loop msgC = do
     msg <- C.readChan msgC
     case msg of
-        M'Stop -> return ()
-        M'Request r -> request r >> loop msgC
+        Nothing -> return ()
+        Just req -> request req >> loop msgC
 
 -- Do what the a request asks.
 request :: Request -> IO ()
@@ -61,17 +61,17 @@ request R'NewSharedContext = undefined -- TODO
 contextDoSyncImpl :: C.Chan Message -> IO a -> IO a
 contextDoSyncImpl msgC action = do
     reply <- C.newEmptyMVar
-    C.writeChan msgC . M'Request $ R'Execute action (Just reply)
+    C.writeChan msgC . Just $ R'Execute action (Just reply)
     C.takeMVar reply
 
 -- Dispatch asychronous concurrent IO to the OpenGL context thread
 contextDoAsyncImpl :: C.Chan Message -> IO () -> IO ()
 contextDoAsyncImpl msgC action =
-    C.writeChan msgC . M'Request $ R'Execute action Nothing
+    C.writeChan msgC . Just $ R'Execute action Nothing
 
 -- Request that the OpenGL context thread shut down
 contextDeleteImpl :: C.Chan Message -> IO ()
 contextDeleteImpl msgC =
-    C.writeChan msgC M'Stop
+    C.writeChan msgC Nothing
 
 -- eof
