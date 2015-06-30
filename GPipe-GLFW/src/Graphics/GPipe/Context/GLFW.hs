@@ -14,7 +14,7 @@ import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
 data Message = M'Stop | M'Request Request
 
 data Request where
-    R'Execute :: forall a. IO a -> Maybe (C.Chan a) -> Request
+    R'Execute :: forall a. IO a -> Maybe (C.MVar a) -> Request
     R'NewSharedContext :: Request -- TODO
 
 ------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ loop msgC = do
 -- Do what the a request asks.
 request :: Request -> IO ()
 request (R'Execute action Nothing) = M.void action
-request (R'Execute action (Just replyC)) = action >>= C.writeChan replyC
+request (R'Execute action (Just reply)) = action >>= C.putMVar reply
 request R'NewSharedContext = undefined -- TODO
 
 ------------------------------------------------------------------------------
@@ -60,9 +60,9 @@ request R'NewSharedContext = undefined -- TODO
 -- Await sychronous concurrent IO from the OpenGL context thread
 contextDoSyncImpl :: C.Chan Message -> IO a -> IO a
 contextDoSyncImpl msgC action = do
-    replyC <- C.newChan
-    C.writeChan msgC . M'Request $ R'Execute action (Just replyC)
-    C.readChan replyC
+    reply <- C.newEmptyMVar
+    C.writeChan msgC . M'Request $ R'Execute action (Just reply)
+    C.takeMVar reply
 
 -- Dispatch asychronous concurrent IO to the OpenGL context thread
 contextDoAsyncImpl :: C.Chan Message -> IO () -> IO ()
