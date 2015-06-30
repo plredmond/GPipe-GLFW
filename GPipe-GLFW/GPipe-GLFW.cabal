@@ -13,4 +13,4 @@ library
   ghc-options:         -Wall
   default-language:    Haskell2010
   exposed-modules:     Graphics.GPipe.Context.GLFW
-  -- other-modules:       
+  other-modules:       Graphics.GPipe.Context.GLFW.Internal
