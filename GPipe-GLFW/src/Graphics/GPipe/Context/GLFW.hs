@@ -22,11 +22,11 @@ data Request where
 
 newContext :: ContextFactory c ds
 newContext contextFormat = do
-    handleC <- C.newChan
+    handleReply <- C.newEmptyMVar
     -- TODO: examine contextFormat to setup framebuffer
     _ <- C.forkIO . Internal.withGL Nothing Nothing $ \w -> do
         msgC <- C.newChan
-        C.writeChan handleC ContextHandle
+        C.putMVar handleReply ContextHandle
             { newSharedContext = undefined -- TODO
             , contextDoSync = contextDoSyncImpl msgC
             , contextDoAsync = contextDoAsyncImpl msgC
@@ -35,7 +35,7 @@ newContext contextFormat = do
             , contextDelete = contextDeleteImpl msgC
             }
         loop msgC
-    C.readChan handleC
+    C.takeMVar handleReply
 
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
