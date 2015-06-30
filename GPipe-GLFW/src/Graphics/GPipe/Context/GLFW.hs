@@ -28,8 +28,10 @@ newContext contextFormat = do
     return ContextHandle
         { newSharedContext = undefined {- \cf -> do
             (NewSharedContextRet ch) <- await msgC (NewSharedContextMsg cf)
-            return ch -}
-        , contextDoSync = contextDoSync' msgC
+            return ch -} -- FIXME
+        , contextDoSync = undefined {- \action -> do
+            (ContextDoSyncRet r) <- await msgC (ContextDoSyncMsg action)
+            return r -} -- FIXME
         , contextDoAsync = dispatch msgC . ContextDoAsyncMsg
         , contextSwap = M.void $ await msgC ContextSwapMsg
         , contextFrameBufferSize = do
@@ -37,12 +39,6 @@ newContext contextFormat = do
             return size
         , contextDelete = M.void $ await msgC ContextDeleteMsg
         }
-
-contextDoSync' :: C.Chan (ContextFactoryMsg c ds a, C.Chan (ContextFactoryRet a))
-    -> IO a -> IO a
-contextDoSync' msgC action = do
-    (ContextDoSyncRet r) <- await msgC (ContextDoSyncMsg action)
-    return r
 
 contextLoop :: C.Chan (ContextFactoryMsg c ds a, C.Chan (ContextFactoryRet a))
     -> Internal.Window
@@ -56,20 +52,20 @@ contextStep w msg = do
     P.printf "Context thread got a message\n"
     case msg of
         NewSharedContextMsg contextFormat -> do
-            -- TODO: create a shared context and reply with it
-            reply undefined
+            -- TODO: create a new context handle to this context and reply with it
+            reply $ NewSharedContextRet undefined
         ContextDoSyncMsg action -> do
             r <- action
-            reply undefined -- FIXME: reply with the result
+            reply $ ContextDoSyncRet r
         ContextDoAsyncMsg action -> do
             action
             ignore
         ContextSwapMsg -> do
-            -- TODO: swap buffers
+            Internal.swapBuffers w
             ignore
         ContextFrameBufferSizeMsg -> do
-            -- TODO: fetch size info
-            reply $ ContextFrameBufferSizeRet (10, 30)
+            size <- Internal.getFramebufferSize w
+            reply $ ContextFrameBufferSizeRet size
         ContextDeleteMsg -> stop
     where
         reply x = return (x, True)
