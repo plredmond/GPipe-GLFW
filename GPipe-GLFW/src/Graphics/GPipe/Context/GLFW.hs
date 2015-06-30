@@ -46,13 +46,13 @@ loop msgC = do
     msg <- C.readChan msgC
     case msg of
         Nothing -> return ()
-        Just req -> request req >> loop msgC
+        Just req -> doRequest req >> loop msgC
 
 -- Do what the a request asks.
-request :: Request -> IO ()
-request (ReqExecute action Nothing) = M.void action
-request (ReqExecute action (Just reply)) = action >>= C.putMVar reply
-request ReqNewSharedContext = undefined -- TODO
+doRequest :: Request -> IO ()
+doRequest (ReqExecute action Nothing) = M.void action
+doRequest (ReqExecute action (Just reply)) = action >>= C.putMVar reply
+doRequest ReqNewSharedContext = undefined -- TODO
 
 ------------------------------------------------------------------------------
 -- Application rpc calls
