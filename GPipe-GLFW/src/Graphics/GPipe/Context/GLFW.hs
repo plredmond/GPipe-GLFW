@@ -1,64 +1,77 @@
-{-# LANGUAGE PackageImports #-}
-module Graphics.GPipe.Context.GLFW where
+{-# LANGUAGE RankNTypes, GADTs #-}
+module Graphics.GPipe.Context.GLFW
+( newContext
+) where
 
 -- qualified
-import qualified Text.Printf as P
-import qualified Data.Maybe as M
-import qualified Control.Exception as Exc
-import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
+import qualified Control.Monad as M
+import qualified Control.Concurrent as C
+import qualified Graphics.GPipe.Context.GLFW.Internal as Internal
+
 -- unqualified
-import Control.Applicative ((<$>))
+import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
+
+type Message = Maybe Request
+
+data Request where
+    ReqExecute :: forall a. IO a -> Maybe (C.MVar a) -> Request
+    ReqNewSharedContext :: Request -- TODO
 
 ------------------------------------------------------------------------------
--- Types & Constants
+-- Interface
 
--- reexports
-type Window = GLFW.Window
-type ErrorCallback = GLFW.ErrorCallback
-
--- a default error callback which ragequits
-defaultOnError :: GLFW.ErrorCallback
-defaultOnError err msg = fail $ P.printf "%s: %s" (show err) msg
-
--- initial window size & title suggestions
-data WindowConf = WindowConf
-    { width :: Int
-    , height :: Int
-    , title :: String 
-    }
-
-defaultWindowConf :: WindowConf
-defaultWindowConf = WindowConf 1024 768 "GLFW Window"
+newContext :: ContextFactory c ds
+newContext contextFormat = do
+    handleReply <- C.newEmptyMVar
+    -- TODO: examine contextFormat to setup framebuffer
+    _ <- C.forkIO . Internal.withGL Nothing Nothing $ \w -> do
+        msgC <- C.newChan
+        C.putMVar handleReply ContextHandle
+            { newSharedContext = undefined -- TODO
+            , contextDoSync = contextDoSyncImpl msgC
+            , contextDoAsync = contextDoAsyncImpl msgC
+            , contextSwap = Internal.swapBuffers w -- this thread only
+            , contextFrameBufferSize = Internal.getFramebufferSize w -- this thread only
+            , contextDelete = contextDeleteImpl msgC
+            }
+        loop msgC
+    C.takeMVar handleReply
 
 ------------------------------------------------------------------------------
--- Code
+-- OpenGL Context thread
 
--- set and unset the GLFW error callback, using a default if none is provided
-withErrorCallback :: Maybe GLFW.ErrorCallback -> IO a -> IO a
-withErrorCallback customOnError =
-    GLFW.setErrorCallback (Just $ M.fromMaybe defaultOnError customOnError)
-    `Exc.bracket_`
-    GLFW.setErrorCallback Nothing 
+-- Handle messages until a stop message is received.
+loop :: C.Chan Message -> IO ()
+loop msgC = do
+    msg <- C.readChan msgC
+    case msg of
+        Nothing -> return ()
+        Just req -> doRequest req >> loop msgC
 
--- init and terminate GLFW
-withGLFW :: IO a -> IO a
-withGLFW = GLFW.init `Exc.bracket_` GLFW.terminate
+-- Do what the a request asks.
+doRequest :: Request -> IO ()
+doRequest (ReqExecute action Nothing) = M.void action
+doRequest (ReqExecute action (Just reply)) = action >>= C.putMVar reply
+doRequest ReqNewSharedContext = undefined -- TODO
 
--- create and destroy a new window, as the current context, using any monitor
-withNewWindow :: Maybe WindowConf -> (GLFW.Window -> IO a) -> IO a
-withNewWindow customWindowConf =
-    (M.fromMaybe noWindow <$> createWindowHuh)
-    `Exc.bracket`
-    GLFW.destroyWindow
-    where
-        noWindow = error "Couldn't create a window"
-        WindowConf w h t = M.fromMaybe defaultWindowConf customWindowConf
-        createWindowHuh = do
-            win <- GLFW.createWindow w h t Nothing Nothing
-            GLFW.makeContextCurrent win
-            return win
+------------------------------------------------------------------------------
+-- Application rpc calls
 
-withGL :: Maybe WindowConf -> Maybe GLFW.ErrorCallback -> (GLFW.Window -> IO a) -> IO a
-withGL wc ec action = withErrorCallback ec . withGLFW . withNewWindow wc $ action
+-- Await sychronous concurrent IO from the OpenGL context thread
+contextDoSyncImpl :: C.Chan Message -> IO a -> IO a
+contextDoSyncImpl msgC action = do
+    reply <- C.newEmptyMVar
+    C.writeChan msgC . Just $ ReqExecute action (Just reply)
+    C.takeMVar reply
+
+-- Dispatch asychronous concurrent IO to the OpenGL context thread
+contextDoAsyncImpl :: C.Chan Message -> IO () -> IO ()
+contextDoAsyncImpl msgC action =
+    C.writeChan msgC . Just $ ReqExecute action Nothing
+
+-- Request that the OpenGL context thread shut down
+contextDeleteImpl :: C.Chan Message -> IO ()
+contextDeleteImpl msgC =
+    C.writeChan msgC Nothing
 
 -- eof
