@@ -1,116 +1,77 @@
-module Graphics.GPipe.Context.GLFW where
+{-# LANGUAGE RankNTypes, GADTs #-}
+module Graphics.GPipe.Context.GLFW
+( newContext
+) where
 
 -- qualified
-import qualified Text.Printf as P
--- import qualified Data.Maybe as M
 import qualified Control.Monad as M
--- import qualified Control.Exception as Exc
 import qualified Control.Concurrent as C
 import qualified Graphics.GPipe.Context.GLFW.Internal as Internal
 
 -- unqualified
--- import Control.Applicative ((<$>))
-import Graphics.GPipe.Format (ContextFormat)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
 
+data Message = M'Stop | M'Request Request
+
+data Request where
+    R'Execute :: forall a. IO a -> Maybe (C.Chan a) -> Request
+    R'NewSharedContext :: Request -- TODO
+
 ------------------------------------------------------------------------------
--- Top level
+-- Interface
 
 newContext :: ContextFactory c ds
 newContext contextFormat = do
-    msgC <- C.newChan
-    _ <- C.forkIO $ do
-        P.printf "Thread beginning\n"
-        -- TODO: inform these arguments with the contextFormat
-        Internal.withGL Nothing Nothing $ contextLoop msgC
-        P.printf "Thread ending\n"
-        return ()
-    return ContextHandle
-        { newSharedContext = undefined {- \cf -> do
-            (NewSharedContextRet ch) <- await msgC (NewSharedContextMsg cf)
-            return ch --} -- FIXME
-        , contextDoSync = undefined {- \action -> do
-            (ContextDoSyncRet r) <- await msgC (ContextDoSyncMsg action)
-            return r --} -- FIXME
-        , contextDoAsync = dispatch msgC . ContextDoAsyncMsg
-        , contextSwap = M.void $ await msgC ContextSwapMsg
-        , contextFrameBufferSize = do
-            (ContextFrameBufferSizeRet size) <- await msgC ContextSwapMsg
-            return size
-        , contextDelete = M.void $ await msgC ContextDeleteMsg
-        }
-
-contextLoop :: C.Chan (ContextFactoryMsg c ds a, C.Chan (ContextFactoryRet a))
-    -> Internal.Window
-    -> IO ()
-contextLoop msgC w = do
-    signal <- turnaround msgC $ contextStep w
-    M.when signal $ contextLoop msgC w
-
-contextStep :: Internal.Window -> ContextFactoryMsg c ds a -> IO (ContextFactoryRet a, Bool)
-contextStep w msg = do
-    P.printf "Context thread got a message\n"
-    case msg of
-        NewSharedContextMsg contextFormat -> do
-            -- TODO: create a new context handle to this context and reply with it
-            reply $ NewSharedContextRet undefined
-        ContextDoSyncMsg action -> do
-            r <- action
-            reply $ ContextDoSyncRet r
-        ContextDoAsyncMsg action -> do
-            action
-            ignore
-        ContextSwapMsg -> do
-            Internal.swapBuffers w
-            ignore
-        ContextFrameBufferSizeMsg -> do
-            size <- Internal.getFramebufferSize w
-            reply $ ContextFrameBufferSizeRet size
-        ContextDeleteMsg -> stop
-    where
-        reply x = return (x, True)
-        ignore = return (OtherRet, True)
-        stop = return (OtherRet, False)
+    handleC <- C.newChan
+    -- TODO: examine contextFormat to setup framebuffer
+    _ <- C.forkIO . Internal.withGL Nothing Nothing $ \w -> do
+        msgC <- C.newChan
+        C.writeChan handleC ContextHandle
+            { newSharedContext = undefined -- TODO
+            , contextDoSync = contextDoSyncImpl msgC
+            , contextDoAsync = contextDoAsyncImpl msgC
+            , contextSwap = Internal.swapBuffers w -- this thread only
+            , contextFrameBufferSize = Internal.getFramebufferSize w -- this thread only
+            , contextDelete = contextDeleteImpl msgC
+            }
+        loop msgC
+    C.readChan handleC
 
 ------------------------------------------------------------------------------
--- Types & Constants
+-- OpenGL Context thread
 
--- Self-Addressed Envelope
-type SAE a b = C.Chan (a, C.Chan b)
+-- Handle messages until a stop message is received.
+loop :: C.Chan Message -> IO ()
+loop msgC = do
+    msg <- C.readChan msgC
+    case msg of
+        M'Stop -> return ()
+        M'Request r -> request r >> loop msgC
 
--- RPC and wait for result
-await :: SAE a b -> a -> IO b
-await msgC msg = do
+-- Do what the a request asks.
+request :: Request -> IO ()
+request (R'Execute action Nothing) = M.void action
+request (R'Execute action (Just replyC)) = action >>= C.writeChan replyC
+request R'NewSharedContext = undefined -- TODO
+
+------------------------------------------------------------------------------
+-- Application rpc calls
+
+-- Await sychronous concurrent IO from the OpenGL context thread
+contextDoSyncImpl :: C.Chan Message -> IO a -> IO a
+contextDoSyncImpl msgC action = do
     replyC <- C.newChan
-    C.writeChan msgC (msg, replyC)
+    C.writeChan msgC . M'Request $ R'Execute action (Just replyC)
     C.readChan replyC
 
--- RPC and ignore result
-dispatch :: SAE a b -> a -> IO ()
-dispatch msgC msg = do
-    ignoredC <- C.newChan
-    C.writeChan msgC (msg, ignoredC)
+-- Dispatch asychronous concurrent IO to the OpenGL context thread
+contextDoAsyncImpl :: C.Chan Message -> IO () -> IO ()
+contextDoAsyncImpl msgC action =
+    C.writeChan msgC . M'Request $ R'Execute action Nothing
 
--- Handle RPC
-turnaround :: SAE a b -> (a -> IO (b, c)) -> IO c
-turnaround msgC handler = do
-    (msg, replyC) <- C.readChan msgC
-    (reply, sig) <- handler msg
-    C.writeChan replyC reply
-    return sig
-
-data ContextFactoryMsg c ds a
-    = NewSharedContextMsg (ContextFormat c ds)
-    | ContextDoSyncMsg (IO a)
-    | ContextDoAsyncMsg (IO ())
-    | ContextSwapMsg
-    | ContextFrameBufferSizeMsg
-    | ContextDeleteMsg
-
-data ContextFactoryRet a
-    = NewSharedContextRet ContextHandle
-    | ContextDoSyncRet a
-    | ContextFrameBufferSizeRet (Int, Int)
-    | OtherRet
+-- Request that the OpenGL context thread shut down
+contextDeleteImpl :: C.Chan Message -> IO ()
+contextDeleteImpl msgC =
+    C.writeChan msgC M'Stop
 
 -- eof
