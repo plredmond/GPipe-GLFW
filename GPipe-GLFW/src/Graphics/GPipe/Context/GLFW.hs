@@ -14,8 +14,8 @@ import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
 type Message = Maybe Request
 
 data Request where
-    R'Execute :: forall a. IO a -> Maybe (C.MVar a) -> Request
-    R'NewSharedContext :: Request -- TODO
+    ReqExecute :: forall a. IO a -> Maybe (C.MVar a) -> Request
+    ReqNewSharedContext :: Request -- TODO
 
 ------------------------------------------------------------------------------
 -- Interface
@@ -50,9 +50,9 @@ loop msgC = do
 
 -- Do what the a request asks.
 request :: Request -> IO ()
-request (R'Execute action Nothing) = M.void action
-request (R'Execute action (Just reply)) = action >>= C.putMVar reply
-request R'NewSharedContext = undefined -- TODO
+request (ReqExecute action Nothing) = M.void action
+request (ReqExecute action (Just reply)) = action >>= C.putMVar reply
+request ReqNewSharedContext = undefined -- TODO
 
 ------------------------------------------------------------------------------
 -- Application rpc calls
@@ -61,13 +61,13 @@ request R'NewSharedContext = undefined -- TODO
 contextDoSyncImpl :: C.Chan Message -> IO a -> IO a
 contextDoSyncImpl msgC action = do
     reply <- C.newEmptyMVar
-    C.writeChan msgC . Just $ R'Execute action (Just reply)
+    C.writeChan msgC . Just $ ReqExecute action (Just reply)
     C.takeMVar reply
 
 -- Dispatch asychronous concurrent IO to the OpenGL context thread
 contextDoAsyncImpl :: C.Chan Message -> IO () -> IO ()
 contextDoAsyncImpl msgC action =
-    C.writeChan msgC . Just $ R'Execute action Nothing
+    C.writeChan msgC . Just $ ReqExecute action Nothing
 
 -- Request that the OpenGL context thread shut down
 contextDeleteImpl :: C.Chan Message -> IO ()
