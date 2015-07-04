@@ -15,19 +15,20 @@ type Message = Maybe Request
 
 data Request where
     ReqExecute :: forall a. IO a -> Maybe (C.MVar a) -> Request
-    ReqNewSharedContext :: Request -- TODO
 
 ------------------------------------------------------------------------------
--- Interface
+-- Top-level
 
 newContext :: ContextFactory c ds
-newContext contextFormat = do
-    handleReply <- C.newEmptyMVar
-    -- TODO: examine contextFormat to setup framebuffer
-    _ <- C.forkOS . Internal.withNewContext Nothing Nothing $ \w -> do
+newContext = context Nothing
+
+context :: Maybe Internal.Window -> ContextFactory c ds
+context share contextFormat = do
+    chReply <- C.newEmptyMVar
+    _ <- C.forkOS . withContext share $ \w -> do
         msgC <- C.newChan
-        C.putMVar handleReply ContextHandle
-            { newSharedContext = undefined -- TODO
+        C.putMVar chReply ContextHandle
+            { newSharedContext = context $ Just w
             , contextDoSync = contextDoSyncImpl msgC
             , contextDoAsync = contextDoAsyncImpl msgC
             , contextSwap = Internal.swapBuffers w -- this thread only
@@ -35,7 +36,12 @@ newContext contextFormat = do
             , contextDelete = contextDeleteImpl msgC
             }
         loop msgC
-    C.takeMVar handleReply
+    C.takeMVar chReply
+    where
+        -- TODO: examine contextFormat to set up framebuffer
+        withContext :: Maybe Internal.Window -> (Internal.Window -> IO a) -> IO a
+        withContext Nothing = Internal.withNewContext Nothing Nothing
+        withContext (Just w) = Internal.withSharedContext w Nothing
 
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
@@ -52,7 +58,6 @@ loop msgC = do
 doRequest :: Request -> IO ()
 doRequest (ReqExecute action Nothing) = M.void action
 doRequest (ReqExecute action (Just reply)) = action >>= C.putMVar reply
-doRequest ReqNewSharedContext = undefined -- TODO
 
 ------------------------------------------------------------------------------
 -- Application rpc calls
