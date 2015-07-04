@@ -25,17 +25,7 @@ newContext = context Nothing
 context :: Maybe Internal.Window -> ContextFactory c ds
 context share contextFormat = do
     chReply <- C.newEmptyMVar
-    _ <- C.forkOS . withContext share $ \w -> do
-        msgC <- C.newChan
-        C.putMVar chReply ContextHandle
-            { newSharedContext = context $ Just w
-            , contextDoSync = contextDoSyncImpl msgC
-            , contextDoAsync = contextDoAsyncImpl msgC
-            , contextSwap = Internal.swapBuffers w -- this thread only
-            , contextFrameBufferSize = Internal.getFramebufferSize w -- this thread only
-            , contextDelete = contextDeleteImpl msgC
-            }
-        loop msgC
+    _ <- C.forkOS . withContext share $ begin chReply
     C.takeMVar chReply
     where
         -- TODO: examine contextFormat to set up framebuffer
@@ -45,6 +35,20 @@ context share contextFormat = do
 
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
+
+-- Create and pass back a ContextHandle. Enter loop.
+begin :: C.MVar ContextHandle -> Internal.Window -> IO ()
+begin chReply w = do
+    msgC <- C.newChan
+    C.putMVar chReply ContextHandle
+        { newSharedContext = context $ Just w
+        , contextDoSync = contextDoSyncImpl msgC
+        , contextDoAsync = contextDoAsyncImpl msgC
+        , contextSwap = Internal.swapBuffers w -- this thread only
+        , contextFrameBufferSize = Internal.getFramebufferSize w -- this thread only
+        , contextDelete = contextDeleteImpl msgC
+        }
+    loop msgC
 
 -- Handle messages until a stop message is received.
 loop :: C.Chan Message -> IO ()
