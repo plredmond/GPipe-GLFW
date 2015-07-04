@@ -1,6 +1,7 @@
 {-# LANGUAGE PackageImports #-}
 module Graphics.GPipe.Context.GLFW.Internal
-( withGL
+( withNewContext
+, withSharedContext
 , Window
 , ErrorCallback
 , swapBuffers
@@ -57,9 +58,10 @@ withGLFW =
         GLFW.init
         GLFW.terminate
 
--- create and destroy a new window, as the current context, using any monitor
-withNewWindow :: Maybe WindowConf -> (Window -> IO a) -> IO a
-withNewWindow customWindowConf =
+-- create and destroy a window, as the current context, using any monitor
+-- if given a `Window`, create the new window's context from that
+withWindow :: Maybe Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
+withWindow share customWindowConf =
     Exc.bracket
         createWindow
         GLFW.destroyWindow
@@ -67,7 +69,7 @@ withNewWindow customWindowConf =
         WindowConf w h t = M.fromMaybe defaultWindowConf customWindowConf
         createWindowHuh :: IO (Maybe Window)
         createWindowHuh = do
-            win <- GLFW.createWindow w h t Nothing Nothing
+            win <- GLFW.createWindow w h t Nothing share
             GLFW.makeContextCurrent win
             return win
         noWindow :: Window
@@ -75,8 +77,18 @@ withNewWindow customWindowConf =
         createWindow :: IO Window
         createWindow = M.fromMaybe noWindow <$> createWindowHuh
 
-withGL :: Maybe WindowConf -> Maybe ErrorCallback -> (Window -> IO a) -> IO a
-withGL wc ec action = withErrorCallback ec . withGLFW . withNewWindow wc $ action
+-- establish and destroy a *new* opengl context
+withNewContext :: Maybe WindowConf -> Maybe ErrorCallback -> (Window -> IO a) -> IO a
+withNewContext wc ec action
+    = withErrorCallback ec
+    . withGLFW
+    . withWindow Nothing wc
+    $ action
+
+-- establish and destroy a *shared* opengl context
+withSharedContext :: Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
+withSharedContext ctx
+    = withWindow (Just ctx)
 
 ------------------------------------------------------------------------------
 -- Util

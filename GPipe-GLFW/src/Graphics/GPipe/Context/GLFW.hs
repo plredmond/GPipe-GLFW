@@ -24,7 +24,7 @@ newContext :: ContextFactory c ds
 newContext contextFormat = do
     handleReply <- C.newEmptyMVar
     -- TODO: examine contextFormat to setup framebuffer
-    _ <- C.forkOS . Internal.withGL Nothing Nothing $ \w -> do
+    _ <- C.forkOS . Internal.withNewContext Nothing Nothing $ \w -> do
         msgC <- C.newChan
         C.putMVar handleReply ContextHandle
             { newSharedContext = undefined -- TODO
