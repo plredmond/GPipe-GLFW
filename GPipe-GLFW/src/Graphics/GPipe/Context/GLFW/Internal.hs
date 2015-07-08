@@ -56,7 +56,9 @@ withGLFW :: IO a -> IO a
 withGLFW =
     Exc.bracket_
         GLFW.init
-        GLFW.terminate
+        $ return () -- GLFW.terminate
+        -- to clean up we should call GLFW.terminate, but it currently breaks
+        -- see issue https://github.com/bsl/GLFW-b/issues/54
 
 -- create and destroy a window, as the current context, using any monitor
 -- if given a `Window`, create the new window's context from that
