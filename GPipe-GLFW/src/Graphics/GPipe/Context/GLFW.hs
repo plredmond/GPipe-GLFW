@@ -27,7 +27,7 @@ newContext = context Nothing
 context :: Maybe Resource.Window -> ContextFactory c ds
 context share fmt = do
     chReply <- C.newEmptyMVar
-    _ <- C.forkOS . withContext share $ begin chReply
+    _ <- C.forkOS $ Format.hinted fmt >> withContext share (begin chReply)
     C.takeMVar chReply
     where
         withContext :: Maybe Resource.Window -> (Resource.Window -> IO a) -> IO a
