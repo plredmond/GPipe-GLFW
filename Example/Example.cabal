@@ -1,16 +1,15 @@
-name:                GPipe-GLFW
+name:                Example
 version:             0.1.0.0
 cabal-version:       >=1.10
 build-type:          Simple
 author:              PLR
 
-library
+executable Main
   hs-source-dirs:      src
+  main-is:             Main.hs
   build-depends:
                        base >=4.7 && <4.8,
-                       GLFW-b >=1.4 && <1.5,
-                       GPipe-Core >=0.1 && <0.2
+                       GPipe-Core >=0.1 && <0.2,
+                       GPipe-GLFW >=0.1 && <0.2
   ghc-options:         -Wall -threaded
   default-language:    Haskell2010
-  exposed-modules:     Graphics.GPipe.Context.GLFW
-  other-modules:       Graphics.GPipe.Context.GLFW.Internal

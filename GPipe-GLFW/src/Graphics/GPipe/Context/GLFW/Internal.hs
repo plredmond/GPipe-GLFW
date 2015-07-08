@@ -1,6 +1,7 @@
 {-# LANGUAGE PackageImports #-}
 module Graphics.GPipe.Context.GLFW.Internal
-( withGL
+( withNewContext
+, withSharedContext
 , Window
 , ErrorCallback
 , swapBuffers
@@ -43,30 +44,53 @@ defaultWindowConf = WindowConf 1024 768 "GLFW Window"
 -- set and unset the GLFW error callback, using a default if none is provided
 withErrorCallback :: Maybe ErrorCallback -> IO a -> IO a
 withErrorCallback customOnError =
-    GLFW.setErrorCallback (Just $ M.fromMaybe defaultOnError customOnError)
-    `Exc.bracket_`
-    GLFW.setErrorCallback Nothing 
+    Exc.bracket_
+        (GLFW.setErrorCallback $ Just onError)
+        (GLFW.setErrorCallback Nothing)
+    where
+        onError :: ErrorCallback
+        onError = M.fromMaybe defaultOnError customOnError
 
 -- init and terminate GLFW
 withGLFW :: IO a -> IO a
-withGLFW = GLFW.init `Exc.bracket_` GLFW.terminate
+withGLFW =
+    Exc.bracket_
+        GLFW.init
+        $ return () -- GLFW.terminate
+        -- to clean up we should call GLFW.terminate, but it currently breaks
+        -- see issue https://github.com/bsl/GLFW-b/issues/54
 
--- create and destroy a new window, as the current context, using any monitor
-withNewWindow :: Maybe WindowConf -> (Window -> IO a) -> IO a
-withNewWindow customWindowConf =
-    (M.fromMaybe noWindow <$> createWindowHuh)
-    `Exc.bracket`
-    GLFW.destroyWindow
+-- create and destroy a window, as the current context, using any monitor
+-- if given a `Window`, create the new window's context from that
+withWindow :: Maybe Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
+withWindow share customWindowConf =
+    Exc.bracket
+        createWindow
+        GLFW.destroyWindow
     where
-        noWindow = error "Couldn't create a window"
         WindowConf w h t = M.fromMaybe defaultWindowConf customWindowConf
+        createWindowHuh :: IO (Maybe Window)
         createWindowHuh = do
-            win <- GLFW.createWindow w h t Nothing Nothing
+            win <- GLFW.createWindow w h t Nothing share
             GLFW.makeContextCurrent win
             return win
+        noWindow :: Window
+        noWindow = error "Couldn't create a window"
+        createWindow :: IO Window
+        createWindow = M.fromMaybe noWindow <$> createWindowHuh
 
-withGL :: Maybe WindowConf -> Maybe ErrorCallback -> (Window -> IO a) -> IO a
-withGL wc ec action = withErrorCallback ec . withGLFW . withNewWindow wc $ action
+-- establish and destroy a *new* opengl context
+withNewContext :: Maybe WindowConf -> Maybe ErrorCallback -> (Window -> IO a) -> IO a
+withNewContext wc ec action
+    = withErrorCallback ec
+    . withGLFW
+    . withWindow Nothing wc
+    $ action
+
+-- establish and destroy a *shared* opengl context
+withSharedContext :: Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
+withSharedContext ctx
+    = withWindow (Just ctx)
 
 ------------------------------------------------------------------------------
 -- Util
