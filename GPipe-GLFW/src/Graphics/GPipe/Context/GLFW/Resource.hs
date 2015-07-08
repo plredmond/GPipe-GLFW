@@ -1,11 +1,11 @@
 {-# LANGUAGE PackageImports #-}
-module Graphics.GPipe.Context.GLFW.Internal
+-- Bracketed GLFW resource initializers
+module Graphics.GPipe.Context.GLFW.Resource
 ( withNewContext
 , withSharedContext
+, WindowConf
 , Window
 , ErrorCallback
-, swapBuffers
-, getFramebufferSize
 ) where
 
 -- qualified
@@ -68,7 +68,7 @@ withWindow share customWindowConf =
         createWindow
         GLFW.destroyWindow
     where
-        WindowConf w h t = M.fromMaybe defaultWindowConf customWindowConf
+        WindowConf {width=w, height=h, title=t} = M.fromMaybe defaultWindowConf customWindowConf
         createWindowHuh :: IO (Maybe Window)
         createWindowHuh = do
             win <- GLFW.createWindow w h t Nothing share
@@ -91,14 +91,5 @@ withNewContext wc ec action
 withSharedContext :: Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
 withSharedContext ctx
     = withWindow (Just ctx)
-
-------------------------------------------------------------------------------
--- Util
-
-swapBuffers :: Window -> IO ()
-swapBuffers = GLFW.swapBuffers
-
-getFramebufferSize :: Window -> IO (Int, Int)
-getFramebufferSize = GLFW.getFramebufferSize
 
 -- eof
