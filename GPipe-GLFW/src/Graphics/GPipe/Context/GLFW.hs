@@ -22,10 +22,10 @@ data Request where
 -- Top-level
 
 newContext :: ContextFactory c ds
-newContext = context Nothing
+newContext = contextFactory Nothing
 
-context :: Maybe Resource.Window -> ContextFactory c ds
-context share fmt = do
+contextFactory :: Maybe Resource.Window -> ContextFactory c ds
+contextFactory share fmt = do
     chReply <- C.newEmptyMVar
     _ <- C.forkOS $ Format.hinted fmt >> withContext share (begin chReply)
     C.takeMVar chReply
@@ -42,7 +42,7 @@ begin :: C.MVar ContextHandle -> Resource.Window -> IO ()
 begin chReply w = do
     msgC <- C.newChan
     C.putMVar chReply ContextHandle
-        { newSharedContext = context $ Just w
+        { newSharedContext = contextFactory $ Just w
         , contextDoSync = contextDoSyncImpl msgC
         , contextDoAsync = contextDoAsyncImpl msgC
         , contextSwap = Util.swapBuffers w -- this thread only
