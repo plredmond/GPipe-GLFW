@@ -60,6 +60,13 @@ withGLFW =
         -- to clean up we should call GLFW.terminate, but it currently breaks
         -- see issue https://github.com/bsl/GLFW-b/issues/54
 
+-- reset window hints and apply the given list, afterward reset window hints
+withHints :: [GLFW.WindowHint] -> IO a -> IO a
+withHints hints =
+    Exc.bracket_
+        (GLFW.defaultWindowHints >> mapM_ GLFW.windowHint hints)
+        GLFW.defaultWindowHints
+
 -- create and destroy a window, as the current context, using any monitor
 -- if given a `Window`, create the new window's context from that
 withWindow :: Maybe Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
@@ -79,17 +86,21 @@ withWindow share customWindowConf =
         createWindow :: IO Window
         createWindow = M.fromMaybe noWindow <$> createWindowHuh
 
+------------------------------------------------------------------------------
+-- Top-level
+
 -- establish and destroy a *new* opengl context
-withNewContext :: Maybe WindowConf -> Maybe ErrorCallback -> (Window -> IO a) -> IO a
-withNewContext wc ec action
+withNewContext :: Maybe ErrorCallback -> [GLFW.WindowHint] -> Maybe WindowConf -> (Window -> IO a) -> IO a
+withNewContext ec hints wc
     = withErrorCallback ec
     . withGLFW
+    . withHints hints
     . withWindow Nothing wc
-    $ action
 
 -- establish and destroy a *shared* opengl context
-withSharedContext :: Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
-withSharedContext ctx
-    = withWindow (Just ctx)
+withSharedContext :: Window -> [GLFW.WindowHint] -> Maybe WindowConf -> (Window -> IO a) -> IO a
+withSharedContext ctx hints wc
+    = withHints hints
+    . withWindow (Just ctx) wc
 
 -- eof

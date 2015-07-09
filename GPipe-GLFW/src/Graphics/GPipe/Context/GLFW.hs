@@ -27,12 +27,13 @@ newContext = contextFactory Nothing
 contextFactory :: Maybe Resource.Window -> ContextFactory c ds
 contextFactory share fmt = do
     chReply <- C.newEmptyMVar
-    _ <- C.forkOS $ Format.hinted fmt >> withContext share (begin chReply)
+    _ <- C.forkOS $ withContext share (begin chReply)
     C.takeMVar chReply
     where
+        hints = Format.toHints fmt
         withContext :: Maybe Resource.Window -> (Resource.Window -> IO a) -> IO a
-        withContext Nothing = Resource.withNewContext Nothing Nothing
-        withContext (Just s) = Resource.withSharedContext s Nothing
+        withContext Nothing = Resource.withNewContext Nothing hints Nothing
+        withContext (Just s) = Resource.withSharedContext s hints Nothing
 
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
