@@ -6,7 +6,9 @@ module Graphics.GPipe.Context.GLFW
 -- qualified
 import qualified Control.Monad as M
 import qualified Control.Concurrent as C
-import qualified Graphics.GPipe.Context.GLFW.Internal as Internal
+import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
+import qualified Graphics.GPipe.Context.GLFW.Util as Util
+import qualified Graphics.GPipe.Context.GLFW.Format as Format
 
 -- unqualified
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
@@ -20,32 +22,32 @@ data Request where
 -- Top-level
 
 newContext :: ContextFactory c ds
-newContext = context Nothing
+newContext = contextFactory Nothing
 
-context :: Maybe Internal.Window -> ContextFactory c ds
-context share contextFormat = do
+contextFactory :: Maybe Resource.Window -> ContextFactory c ds
+contextFactory share fmt = do
     chReply <- C.newEmptyMVar
-    _ <- C.forkOS . withContext share $ begin chReply
+    _ <- C.forkOS $ withContext share (begin chReply)
     C.takeMVar chReply
     where
-        -- TODO: examine contextFormat to set up framebuffer
-        withContext :: Maybe Internal.Window -> (Internal.Window -> IO a) -> IO a
-        withContext Nothing = Internal.withNewContext Nothing Nothing
-        withContext (Just w) = Internal.withSharedContext w Nothing
+        hints = Format.toHints fmt
+        withContext :: Maybe Resource.Window -> (Resource.Window -> IO a) -> IO a
+        withContext Nothing = Resource.withNewContext Nothing hints Nothing
+        withContext (Just s) = Resource.withSharedContext s hints Nothing
 
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
 
 -- Create and pass back a ContextHandle. Enter loop.
-begin :: C.MVar ContextHandle -> Internal.Window -> IO ()
+begin :: C.MVar ContextHandle -> Resource.Window -> IO ()
 begin chReply w = do
     msgC <- C.newChan
     C.putMVar chReply ContextHandle
-        { newSharedContext = context $ Just w
+        { newSharedContext = contextFactory $ Just w
         , contextDoSync = contextDoSyncImpl msgC
         , contextDoAsync = contextDoAsyncImpl msgC
-        , contextSwap = Internal.swapBuffers w -- this thread only
-        , contextFrameBufferSize = Internal.getFramebufferSize w -- this thread only
+        , contextSwap = Util.swapBuffers w -- this thread only
+        , contextFrameBufferSize = Util.getFramebufferSize w -- this thread only
         , contextDelete = contextDeleteImpl msgC
         }
     loop msgC
