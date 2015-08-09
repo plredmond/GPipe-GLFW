@@ -12,7 +12,7 @@ import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 -- Util
 
 swapBuffers :: GLFW.Window -> IO ()
-swapBuffers = GLFW.swapBuffers
+swapBuffers w = GLFW.swapBuffers w >> GLFW.pollEvents
 
 getFramebufferSize :: GLFW.Window -> IO (Int, Int)
 getFramebufferSize = GLFW.getFramebufferSize
