@@ -21,6 +21,11 @@ toHints fmt =
     , GLFW.WindowHint'AlphaBits alpha
     , GLFW.WindowHint'DepthBits depth
     , GLFW.WindowHint'StencilBits stencil
+
+    , GLFW.WindowHint'ContextVersionMajor 3
+    , GLFW.WindowHint'ContextVersionMinor 3
+    , GLFW.WindowHint'OpenGLForwardCompat True
+    , GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
     ]
     where
         ((red, green, blue, alpha, sRGB), depth, stencil) = F.contextBits fmt
