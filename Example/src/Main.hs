@@ -11,15 +11,15 @@ import qualified Graphics.GPipe.Context.GLFW as CtxI
 main :: IO ()
 main = do
     -- create and destroy contexts in sequence
-    withContext (CtxI.newContext Ctx.ContextFormatNone) (action "a")
-    withContext (CtxI.newContext $ Ctx.ContextFormatColor Fmt.RGB8) (action "b")
+    withContext (CtxI.newContext Fmt.ContextFormatNone) (action "a")
+    withContext (CtxI.newContext $ Fmt.ContextFormatColor Fmt.RGB8) (action "b")
     -- create a context
     --     create and destroy a 1st shared context
     --     create a 2nd shared context in sequence
     --         create and destroy a nested shared context from the 2nd shared context
     --     destroy the 2nd shared context
     -- destroy the original context
-    let fmt = Ctx.ContextFormatColor Fmt.RG32F
+    let fmt = Fmt.ContextFormatColor Fmt.RG32F
     withContext (CtxI.newContext fmt) $ \c1 -> do
             action "c1 before" c1
             withContext (Ctx.newSharedContext c1 fmt) $ \c2a -> action "c1/c2a" c2a
