@@ -2,15 +2,12 @@ flags: {}
 packages:
 - '.'
 - location:
-#   git: git@github.com:tobbebex/GPipe-Core
-#   commit: ...
-    git: git@github.com:plredmond/GPipe-Core # has own stack.yaml
-    commit: c4ad1864f3c32ba41ea323ac91ef26552e1d106c
+    git: https://github.com/tobbebex/GPipe-Core.git
+    commit: 4f7b9e3e909e1ec20fb18a5a22bc99429b920a86
   subdirs:
   - GPipe-Core
   extra-dep: true
 extra-deps:
 - GLFW-b-1.4.7.3
 - bindings-GLFW-3.1.1.4
-- OpenGLRaw-2.5.1.0 # for GPipe-Core
-resolver: lts-2.22
+resolver: lts-3.1

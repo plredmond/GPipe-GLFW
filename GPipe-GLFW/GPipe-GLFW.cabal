@@ -7,9 +7,9 @@ author:              PLR
 library
   hs-source-dirs:      src
   build-depends:
-                       base >=4.7 && <4.8,
+                       base >=4.7 && <4.9,
                        GLFW-b >=1.4 && <1.5,
-                       GPipe-Core >=0.1 && <0.2
+                       GPipe >=2.0 && <2.1
   ghc-options:         -Wall -threaded
   default-language:    Haskell2010
   exposed-modules:     Graphics.GPipe.Context.GLFW
