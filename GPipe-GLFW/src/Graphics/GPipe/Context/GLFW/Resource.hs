@@ -1,8 +1,8 @@
 {-# LANGUAGE PackageImports #-}
 -- Bracketed GLFW resource initializers
 module Graphics.GPipe.Context.GLFW.Resource
-( withNewContext
-, withSharedContext
+( newContext
+, newSharedContext
 , WindowConf
 , Window
 , ErrorCallback
@@ -67,40 +67,37 @@ withHints hints =
         (GLFW.defaultWindowHints >> mapM_ GLFW.windowHint hints)
         GLFW.defaultWindowHints
 
--- create and destroy a window, as the current context, using any monitor
+-- create a window, as the current context, using any monitor
 -- if given a `Window`, create the new window's context from that
-withWindow :: Maybe Window -> Maybe WindowConf -> (Window -> IO a) -> IO a
-withWindow share customWindowConf =
-    Exc.bracket
-        createWindow
-        GLFW.destroyWindow
+newWindow :: Maybe Window -> Maybe WindowConf -> IO Window
+newWindow share customWindowConf =
+    M.fromMaybe noWindow <$> createWindowHuh
     where
         WindowConf {width=w, height=h, title=t} = M.fromMaybe defaultWindowConf customWindowConf
         createWindowHuh :: IO (Maybe Window)
         createWindowHuh = do
+            GLFW.makeContextCurrent Nothing
             win <- GLFW.createWindow w h t Nothing share
             GLFW.makeContextCurrent win
             return win
         noWindow :: Window
         noWindow = error "Couldn't create a window"
-        createWindow :: IO Window
-        createWindow = M.fromMaybe noWindow <$> createWindowHuh
 
 ------------------------------------------------------------------------------
 -- Top-level
 
--- establish and destroy a *new* opengl context
-withNewContext :: Maybe ErrorCallback -> [GLFW.WindowHint] -> Maybe WindowConf -> (Window -> IO a) -> IO a
-withNewContext ec hints wc
+-- establish a *new* opengl context
+newContext :: Maybe ErrorCallback -> [GLFW.WindowHint] -> Maybe WindowConf -> IO Window
+newContext ec hints wc
     = withErrorCallback ec
     . withGLFW
-    . withHints hints
-    . withWindow Nothing wc
+    . withHints hints 
+    $ newWindow Nothing wc
 
--- establish and destroy a *shared* opengl context
-withSharedContext :: Window -> [GLFW.WindowHint] -> Maybe WindowConf -> (Window -> IO a) -> IO a
-withSharedContext ctx hints wc
+-- establish a *shared* opengl context
+newSharedContext :: Window -> [GLFW.WindowHint] -> Maybe WindowConf -> IO Window
+newSharedContext ctx hints wc
     = withHints hints
-    . withWindow (Just ctx) wc
+    $ newWindow (Just ctx) wc
 
 -- eof

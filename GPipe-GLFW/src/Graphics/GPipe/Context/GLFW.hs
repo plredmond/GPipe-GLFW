@@ -1,6 +1,9 @@
 {-# LANGUAGE RankNTypes, GADTs #-}
 module Graphics.GPipe.Context.GLFW
-( newContext
+( newContext,
+  GLFWWindow(),
+  getCursorPos, getMouseButton, getKey, windowShouldClose,
+  MouseButtonState(..), MouseButton(..), KeyState(..), Key(..),
 ) where
 
 -- qualified
@@ -9,9 +12,14 @@ import qualified Control.Concurrent as C
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
+import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow)
 
 -- unqualified
-import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
+import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
+import Graphics.GPipe.Format (ContextFormat)
+import Graphics.UI.GLFW (MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
+import Control.Monad.IO.Class (MonadIO)
+import Data.Maybe (isNothing)
 
 type Message = Maybe Request
 
@@ -21,36 +29,42 @@ data Request where
 ------------------------------------------------------------------------------
 -- Top-level
 
-newContext :: ContextFactory c ds
-newContext = contextFactory Nothing
+newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window } 
 
-contextFactory :: Maybe Resource.Window -> ContextFactory c ds
-contextFactory share fmt = do
+newContext :: ContextFactory c ds GLFWWindow
+newContext fmt = do
     chReply <- C.newEmptyMVar
-    _ <- C.forkOS $ withContext share (begin chReply)
+    _ <- C.forkOS $ begin chReply fmt
     C.takeMVar chReply
+
+createContext :: C.Chan Message -> Maybe (Resource.Window) -> ContextFactory c ds GLFWWindow
+createContext msgC share fmt = do
+    w <- makeContext share
+    return ContextHandle
+        { newSharedContext = contextDoSyncImpl w msgC . createContext msgC (Just w)
+        , contextDoSync = contextDoSyncImpl w msgC
+        , contextDoAsync = contextDoAsyncImpl w msgC
+        , contextSwap = Util.swapBuffers w -- this thread only
+        , contextFrameBufferSize = Util.getFramebufferSize w -- this thread only
+        , contextDelete = do contextDoSyncImpl w msgC (GLFW.destroyWindow w)
+                             M.when (isNothing share) $ contextDeleteImpl msgC -- Shut down thread when outermost shared context is destroyed                               
+        , contextWindow = GLFWWindow w
+        }
     where
         hints = Format.toHints fmt
-        withContext :: Maybe Resource.Window -> (Resource.Window -> IO a) -> IO a
-        withContext Nothing = Resource.withNewContext Nothing hints Nothing
-        withContext (Just s) = Resource.withSharedContext s hints Nothing
-
+        makeContext :: Maybe Resource.Window -> IO Resource.Window
+        makeContext Nothing = Resource.newContext Nothing hints Nothing
+        makeContext (Just s) = Resource.newSharedContext s hints Nothing
+    
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
 
 -- Create and pass back a ContextHandle. Enter loop.
-begin :: C.MVar ContextHandle -> Resource.Window -> IO ()
-begin chReply w = do
-    msgC <- C.newChan
-    C.putMVar chReply ContextHandle
-        { newSharedContext = contextFactory $ Just w
-        , contextDoSync = contextDoSyncImpl msgC
-        , contextDoAsync = contextDoAsyncImpl msgC
-        , contextSwap = Util.swapBuffers w -- this thread only
-        , contextFrameBufferSize = Util.getFramebufferSize w -- this thread only
-        , contextDelete = contextDeleteImpl msgC
-        }
-    loop msgC
+begin :: C.MVar (ContextHandle GLFWWindow) -> ContextFormat c ds -> IO ()
+begin chReply fmt = do msgC <- C.newChan
+                       handle <- createContext msgC Nothing fmt
+                       C.putMVar chReply handle
+                       loop msgC
 
 -- Handle messages until a stop message is received.
 loop :: C.Chan Message -> IO ()
@@ -69,20 +83,35 @@ doRequest (ReqExecute action (Just reply)) = action >>= C.putMVar reply
 -- Application rpc calls
 
 -- Await sychronous concurrent IO from the OpenGL context thread
-contextDoSyncImpl :: C.Chan Message -> IO a -> IO a
-contextDoSyncImpl msgC action = do
+contextDoSyncImpl :: Resource.Window -> C.Chan Message -> IO a -> IO a
+contextDoSyncImpl w msgC action = do
     reply <- C.newEmptyMVar
-    C.writeChan msgC . Just $ ReqExecute action (Just reply)
+    C.writeChan msgC . Just $ ReqExecute (GLFW.makeContextCurrent (Just w) >> action) (Just reply)
     C.takeMVar reply
 
 -- Dispatch asychronous concurrent IO to the OpenGL context thread
-contextDoAsyncImpl :: C.Chan Message -> IO () -> IO ()
-contextDoAsyncImpl msgC action =
-    C.writeChan msgC . Just $ ReqExecute action Nothing
+contextDoAsyncImpl :: Resource.Window -> C.Chan Message -> IO () -> IO ()
+contextDoAsyncImpl w msgC action =
+    C.writeChan msgC . Just $ ReqExecute (GLFW.makeContextCurrent (Just w) >> action) Nothing
 
 -- Request that the OpenGL context thread shut down
 contextDeleteImpl :: C.Chan Message -> IO ()
 contextDeleteImpl msgC =
     C.writeChan msgC Nothing
+
+------------------------------------------------------------------------------
+-- Exposed window actions
+
+getCursorPos :: MonadIO m => ContextT GLFWWindow os f m (Double, Double)
+getCursorPos = withContextWindow (GLFW.getCursorPos . unGLFWWindow) 
+
+getMouseButton :: MonadIO m => MouseButton -> ContextT GLFWWindow os f m MouseButtonState 
+getMouseButton mb = withContextWindow (\(GLFWWindow w) -> GLFW.getMouseButton w mb) 
+
+getKey :: MonadIO m => Key -> ContextT GLFWWindow os f m KeyState
+getKey k = withContextWindow (\(GLFWWindow w) -> GLFW.getKey w k)
+
+windowShouldClose :: MonadIO m => ContextT GLFWWindow os f m Bool
+windowShouldClose = withContextWindow (GLFW.windowShouldClose . unGLFWWindow) 
 
 -- eof
