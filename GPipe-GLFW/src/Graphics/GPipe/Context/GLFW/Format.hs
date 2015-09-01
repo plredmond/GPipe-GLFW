@@ -4,7 +4,6 @@ module Graphics.GPipe.Context.GLFW.Format
 ( toHints
 ) where
 
--- qualified
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 import qualified Graphics.GPipe.Format as F
 

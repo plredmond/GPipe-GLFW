@@ -6,20 +6,18 @@ module Graphics.GPipe.Context.GLFW
   MouseButtonState(..), MouseButton(..), KeyState(..), Key(..),
 ) where
 
--- qualified
-import qualified Control.Monad as M
 import qualified Control.Concurrent as C
+import qualified Control.Monad as M
+import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
-import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow)
 
--- unqualified
+import Control.Monad.IO.Class (MonadIO)
+import Data.Maybe (isNothing)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
 import Graphics.GPipe.Format (ContextFormat)
 import Graphics.UI.GLFW (MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
-import Control.Monad.IO.Class (MonadIO)
-import Data.Maybe (isNothing)
 
 type Message = Maybe Request
 
@@ -29,15 +27,17 @@ data Request where
 ------------------------------------------------------------------------------
 -- Top-level
 
-newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window } 
+-- | An opaque value representing a GLFW OpenGL context window.
+newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window }
 
+-- | The context factory which facilitates use of GLFW with GPipe.
 newContext :: ContextFactory c ds GLFWWindow
 newContext fmt = do
     chReply <- C.newEmptyMVar
     _ <- C.forkOS $ begin chReply fmt
     C.takeMVar chReply
 
-createContext :: C.Chan Message -> Maybe (Resource.Window) -> ContextFactory c ds GLFWWindow
+createContext :: C.Chan Message -> Maybe Resource.Window -> ContextFactory c ds GLFWWindow
 createContext msgC share fmt = do
     w <- makeContext share
     return ContextHandle
@@ -46,8 +46,10 @@ createContext msgC share fmt = do
         , contextDoAsync = contextDoAsyncImpl w msgC
         , contextSwap = Util.swapBuffers w -- this thread only
         , contextFrameBufferSize = Util.getFramebufferSize w -- this thread only
-        , contextDelete = do contextDoSyncImpl w msgC (GLFW.destroyWindow w)
-                             M.when (isNothing share) $ contextDeleteImpl msgC -- Shut down thread when outermost shared context is destroyed                               
+        , contextDelete = do
+            contextDoSyncImpl w msgC (GLFW.destroyWindow w)
+            -- Shut down thread when outermost shared context is destroyed
+            M.when (isNothing share) $ contextDeleteImpl msgC
         , contextWindow = GLFWWindow w
         }
     where
@@ -55,16 +57,17 @@ createContext msgC share fmt = do
         makeContext :: Maybe Resource.Window -> IO Resource.Window
         makeContext Nothing = Resource.newContext Nothing hints Nothing
         makeContext (Just s) = Resource.newSharedContext s hints Nothing
-    
+
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
 
 -- Create and pass back a ContextHandle. Enter loop.
 begin :: C.MVar (ContextHandle GLFWWindow) -> ContextFormat c ds -> IO ()
-begin chReply fmt = do msgC <- C.newChan
-                       handle <- createContext msgC Nothing fmt
-                       C.putMVar chReply handle
-                       loop msgC
+begin chReply fmt = do
+    msgC <- C.newChan
+    handle <- createContext msgC Nothing fmt
+    C.putMVar chReply handle
+    loop msgC
 
 -- Handle messages until a stop message is received.
 loop :: C.Chan Message -> IO ()
@@ -103,15 +106,15 @@ contextDeleteImpl msgC =
 -- Exposed window actions
 
 getCursorPos :: MonadIO m => ContextT GLFWWindow os f m (Double, Double)
-getCursorPos = withContextWindow (GLFW.getCursorPos . unGLFWWindow) 
+getCursorPos = withContextWindow (GLFW.getCursorPos . unGLFWWindow)
 
-getMouseButton :: MonadIO m => MouseButton -> ContextT GLFWWindow os f m MouseButtonState 
-getMouseButton mb = withContextWindow (\(GLFWWindow w) -> GLFW.getMouseButton w mb) 
+getMouseButton :: MonadIO m => MouseButton -> ContextT GLFWWindow os f m MouseButtonState
+getMouseButton mb = withContextWindow (\(GLFWWindow w) -> GLFW.getMouseButton w mb)
 
 getKey :: MonadIO m => Key -> ContextT GLFWWindow os f m KeyState
 getKey k = withContextWindow (\(GLFWWindow w) -> GLFW.getKey w k)
 
 windowShouldClose :: MonadIO m => ContextT GLFWWindow os f m Bool
-windowShouldClose = withContextWindow (GLFW.windowShouldClose . unGLFWWindow) 
+windowShouldClose = withContextWindow (GLFW.windowShouldClose . unGLFWWindow)
 
 -- eof

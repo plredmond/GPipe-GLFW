@@ -5,7 +5,6 @@ module Graphics.GPipe.Context.GLFW.Util
 , getFramebufferSize
 ) where
 
--- qualified
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 
 ------------------------------------------------------------------------------

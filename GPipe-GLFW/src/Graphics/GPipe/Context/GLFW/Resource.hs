@@ -8,13 +8,11 @@ module Graphics.GPipe.Context.GLFW.Resource
 , ErrorCallback
 ) where
 
--- qualified
-import qualified Text.Printf as P
-import qualified Data.Maybe as M
-import qualified Control.Exception as Exc
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
+import qualified Control.Exception as Exc
+import qualified Data.Maybe as M
+import qualified Text.Printf as P
 
--- unqualified
 import Control.Applicative ((<$>))
 
 ------------------------------------------------------------------------------
@@ -32,7 +30,7 @@ defaultOnError err msg = fail $ P.printf "%s: %s" (show err) msg
 data WindowConf = WindowConf
     { width :: Int
     , height :: Int
-    , title :: String 
+    , title :: String
     }
 
 defaultWindowConf :: WindowConf
@@ -91,7 +89,7 @@ newContext :: Maybe ErrorCallback -> [GLFW.WindowHint] -> Maybe WindowConf -> IO
 newContext ec hints wc
     = withErrorCallback ec
     . withGLFW
-    . withHints hints 
+    . withHints hints
     $ newWindow Nothing wc
 
 -- establish a *shared* opengl context

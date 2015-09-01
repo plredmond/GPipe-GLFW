@@ -1,13 +1,8 @@
 flags: {}
 packages:
 - '.'
-- location:
-    git: https://github.com/tobbebex/GPipe-Core.git
-    commit: 7c0d42b610da2b91788d2c1290cc4523dd565dd5
-  subdirs:
-  - GPipe-Core
-  extra-dep: true
 extra-deps:
+- GPipe-2.0
 - GLFW-b-1.4.7.3
 - bindings-GLFW-3.1.1.4
 resolver: lts-3.1
