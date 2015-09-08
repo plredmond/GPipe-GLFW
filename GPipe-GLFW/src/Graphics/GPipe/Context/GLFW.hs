@@ -11,7 +11,7 @@ import qualified Control.Monad as M
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
-import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow)
+import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow, pollEvents)
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.Maybe (isNothing)
@@ -31,17 +31,29 @@ data Request where
 newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window }
 
 -- | The context factory which facilitates use of GLFW with GPipe.
+--   This has to be run from the main thread.
 newContext :: ContextFactory c ds GLFWWindow
 newContext fmt = do
     chReply <- C.newEmptyMVar
-    _ <- C.forkOS $ begin chReply fmt
-    C.takeMVar chReply
+    _ <- C.forkOS $ begin chReply
+    msgC <- C.takeMVar chReply
+    createContext msgC Nothing fmt    
 
 createContext :: C.Chan Message -> Maybe Resource.Window -> ContextFactory c ds GLFWWindow
 createContext msgC share fmt = do
     w <- makeContext share
+    GLFW.makeContextCurrent Nothing
     return ContextHandle
-        { newSharedContext = contextDoSyncImpl w msgC . createContext msgC (Just w)
+        { newSharedContext = \ fmt -> do 
+                                 syncMainWait <- C.newEmptyMVar
+                                 syncRendWait <- C.newEmptyMVar
+                                 contextDoAsyncImpl w msgC $ do GLFW.makeContextCurrent Nothing
+                                                                C.putMVar syncMainWait ()                                                                    
+                                                                C.takeMVar syncRendWait -- Stop other async code from making window current (e.g. finalizers)
+                                 C.takeMVar syncMainWait -- Wait for render thread to make window uncurrent
+                                 handle <- createContext msgC (Just w) fmt
+                                 C.putMVar syncRendWait () -- Release render thread
+                                 return handle
         , contextDoSync = contextDoSyncImpl w msgC
         , contextDoAsync = contextDoAsyncImpl w msgC
         , contextSwap = Util.swapBuffers w -- this thread only
@@ -61,12 +73,11 @@ createContext msgC share fmt = do
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
 
--- Create and pass back a ContextHandle. Enter loop.
-begin :: C.MVar (ContextHandle GLFWWindow) -> ContextFormat c ds -> IO ()
-begin chReply fmt = do
+-- Create and pass back a channel. Enter loop.
+begin :: C.MVar (C.Chan Message) ->  IO ()
+begin chReply = do
     msgC <- C.newChan
-    handle <- createContext msgC Nothing fmt
-    C.putMVar chReply handle
+    C.putMVar chReply msgC
     loop msgC
 
 -- Handle messages until a stop message is received.
@@ -90,6 +101,7 @@ contextDoSyncImpl :: Resource.Window -> C.Chan Message -> IO a -> IO a
 contextDoSyncImpl w msgC action = do
     reply <- C.newEmptyMVar
     C.writeChan msgC . Just $ ReqExecute (GLFW.makeContextCurrent (Just w) >> action) (Just reply)
+    GLFW.pollEvents -- Ugly hack, but at least every swapContextBuffers will run this 
     C.takeMVar reply
 
 -- Dispatch asychronous concurrent IO to the OpenGL context thread
