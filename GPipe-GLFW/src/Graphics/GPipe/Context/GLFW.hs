@@ -16,7 +16,6 @@ import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey,
 import Control.Monad.IO.Class (MonadIO)
 import Data.Maybe (isNothing)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
-import Graphics.GPipe.Format (ContextFormat)
 import Graphics.UI.GLFW (MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
 
 type Message = Maybe Request
@@ -44,22 +43,13 @@ createContext msgC share fmt = do
     w <- makeContext share
     GLFW.makeContextCurrent Nothing
     return ContextHandle
-        { newSharedContext = \ fmt -> do 
-                                 syncMainWait <- C.newEmptyMVar
-                                 syncRendWait <- C.newEmptyMVar
-                                 contextDoAsyncImpl w msgC $ do GLFW.makeContextCurrent Nothing
-                                                                C.putMVar syncMainWait ()                                                                    
-                                                                C.takeMVar syncRendWait -- Stop other async code from making window current (e.g. finalizers)
-                                 C.takeMVar syncMainWait -- Wait for render thread to make window uncurrent
-                                 handle <- createContext msgC (Just w) fmt
-                                 C.putMVar syncRendWait () -- Release render thread
-                                 return handle
+        { newSharedContext = mainthreadDoWhileContextUncurrent msgC . createContext msgC (Just w) 
         , contextDoSync = contextDoSyncImpl w msgC
         , contextDoAsync = contextDoAsyncImpl w msgC
-        , contextSwap = Util.swapBuffers w -- this thread only
-        , contextFrameBufferSize = Util.getFramebufferSize w -- this thread only
+        , contextSwap = contextDoSyncImpl w msgC $ Util.swapBuffers w -- explicitly do it on the render thread to sync properly, GLFW allows this
+        , contextFrameBufferSize = Util.getFramebufferSize w -- Runs on mainthread
         , contextDelete = do
-            contextDoSyncImpl w msgC (GLFW.destroyWindow w)
+            mainthreadDoWhileContextUncurrent msgC (GLFW.destroyWindow w)
             -- Shut down thread when outermost shared context is destroyed
             M.when (isNothing share) $ contextDeleteImpl msgC
         , contextWindow = GLFWWindow w
@@ -69,6 +59,9 @@ createContext msgC share fmt = do
         makeContext :: Maybe Resource.Window -> IO Resource.Window
         makeContext Nothing = Resource.newContext Nothing hints Nothing
         makeContext (Just s) = Resource.newSharedContext s hints Nothing
+
+
+
 
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
@@ -108,6 +101,20 @@ contextDoSyncImpl w msgC action = do
 contextDoAsyncImpl :: Resource.Window -> C.Chan Message -> IO () -> IO ()
 contextDoAsyncImpl w msgC action =
     C.writeChan msgC . Just $ ReqExecute (GLFW.makeContextCurrent (Just w) >> action) Nothing
+
+-- Do action while renderhtread is uncurrent 
+mainthreadDoWhileContextUncurrent :: C.Chan Message -> IO a -> IO a
+mainthreadDoWhileContextUncurrent msgC mainAction = do
+    syncMainWait <- C.newEmptyMVar
+    syncRendWait <- C.newEmptyMVar
+    let m = do GLFW.makeContextCurrent Nothing
+               C.putMVar syncMainWait ()                                                                    
+               C.takeMVar syncRendWait -- Stop other async code from making window current (e.g. finalizers)
+    C.writeChan msgC . Just $ ReqExecute m Nothing
+    C.takeMVar syncMainWait -- Wait for render thread to make window uncurrent
+    ret <- mainAction
+    C.putMVar syncRendWait () -- Release render thread
+    return ret
 
 -- Request that the OpenGL context thread shut down
 contextDeleteImpl :: C.Chan Message -> IO ()
