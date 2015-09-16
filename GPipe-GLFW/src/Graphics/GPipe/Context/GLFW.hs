@@ -7,21 +7,21 @@ module Graphics.GPipe.Context.GLFW
 ) where
 
 import qualified Control.Concurrent as C
-import qualified Control.Monad as M
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
 import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow, pollEvents)
 
 import Control.Monad.IO.Class (MonadIO)
-import Data.Maybe (isNothing)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
 import Graphics.UI.GLFW (MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
+import Data.IORef
+import Control.Monad (when)
 
-type Message = Maybe Request
-
-data Request where
-    ReqExecute :: forall a. IO a -> Maybe (C.MVar a) -> Request
+data Message where
+    ReqShutDown :: C.MVar () -> Message
+    ReqExecuteSync :: forall a. IO a -> C.MVar a -> Message
+    ReqExecuteAsync :: IO () -> Message
 
 ------------------------------------------------------------------------------
 -- Top-level
@@ -36,22 +36,25 @@ newContext fmt = do
     chReply <- C.newEmptyMVar
     _ <- C.forkOS $ begin chReply
     msgC <- C.takeMVar chReply
-    createContext msgC Nothing fmt    
+    h <- createContext msgC Nothing fmt    
+    contextDoAsync h True (return ()) -- First action on render thread: Just make window current
+    return h 
 
 createContext :: C.Chan Message -> Maybe Resource.Window -> ContextFactory c ds GLFWWindow
 createContext msgC share fmt = do
     w <- makeContext share
     GLFW.makeContextCurrent Nothing
+    alive <- newIORef True -- This will always be used from render thread so no need to synchronize
     return ContextHandle
-        { newSharedContext = mainthreadDoWhileContextUncurrent msgC . createContext msgC (Just w) 
+        { newSharedContext = mainthreadDoWhileContextUncurrent msgC w . createContext msgC (Just w) -- Create context on this thread while parent is uncurrent, then make parent current
         , contextDoSync = contextDoSyncImpl w msgC
-        , contextDoAsync = contextDoAsyncImpl w msgC
-        , contextSwap = contextDoSyncImpl w msgC $ Util.swapBuffers w -- explicitly do it on the render thread to sync properly, GLFW allows this
+        , contextDoAsync = contextDoAsyncImpl alive w msgC
+        , contextSwap = contextDoSyncImpl w msgC False $ Util.swapBuffers w -- explicitly do it on the render thread to sync properly, GLFW allows this
         , contextFrameBufferSize = Util.getFramebufferSize w -- Runs on mainthread
-        , contextDelete = do
-            mainthreadDoWhileContextUncurrent msgC (GLFW.destroyWindow w)
-            -- Shut down thread when outermost shared context is destroyed
-            M.when (isNothing share) $ contextDeleteImpl msgC
+        , contextDelete = case share of
+            Nothing -> do contextDeleteImpl msgC -- This return when render thread is uncurrent and is shutting down (cannot serve any finalizers)
+                          GLFW.destroyWindow w
+            Just parentW  -> mainthreadDoWhileContextUncurrent msgC parentW (writeIORef alive False >> GLFW.destroyWindow w) -- Shared contexts still alive, delete while uncurrent, then make parent win current
         , contextWindow = GLFWWindow w
         }
     where
@@ -59,8 +62,6 @@ createContext msgC share fmt = do
         makeContext :: Maybe Resource.Window -> IO Resource.Window
         makeContext Nothing = Resource.newContext Nothing hints Nothing
         makeContext (Just s) = Resource.newSharedContext s hints Nothing
-
-
 
 
 ------------------------------------------------------------------------------
@@ -78,39 +79,46 @@ loop :: C.Chan Message -> IO ()
 loop msgC = do
     msg <- C.readChan msgC
     case msg of
-        Nothing -> return ()
-        Just req -> doRequest req >> loop msgC
-
--- Do what the a request asks.
-doRequest :: Request -> IO ()
-doRequest (ReqExecute action Nothing) = M.void action
-doRequest (ReqExecute action (Just reply)) = action >>= C.putMVar reply
+        ReqShutDown reply -> GLFW.makeContextCurrent Nothing >> C.putMVar reply ()
+        ReqExecuteSync action reply -> action >>= C.putMVar reply >> loop msgC
+        ReqExecuteAsync action -> action >> loop msgC
 
 ------------------------------------------------------------------------------
 -- Application rpc calls
 
 -- Await sychronous concurrent IO from the OpenGL context thread
-contextDoSyncImpl :: Resource.Window -> C.Chan Message -> IO a -> IO a
-contextDoSyncImpl w msgC action = do
+contextDoSyncImpl :: Resource.Window -> C.Chan Message -> Bool -> IO a -> IO a
+contextDoSyncImpl w msgC inwin action = do
     reply <- C.newEmptyMVar
-    C.writeChan msgC . Just $ ReqExecute (GLFW.makeContextCurrent (Just w) >> action) (Just reply)
+    C.writeChan msgC $ ReqExecuteSync (do when inwin (GLFW.makeContextCurrent (Just w))
+                                          action)
+                                      reply
     GLFW.pollEvents -- Ugly hack, but at least every swapContextBuffers will run this 
     C.takeMVar reply
 
 -- Dispatch asychronous concurrent IO to the OpenGL context thread
-contextDoAsyncImpl :: Resource.Window -> C.Chan Message -> IO () -> IO ()
-contextDoAsyncImpl w msgC action =
-    C.writeChan msgC . Just $ ReqExecute (GLFW.makeContextCurrent (Just w) >> action) Nothing
+contextDoAsyncImpl :: IORef Bool -> Resource.Window -> C.Chan Message -> Bool -> IO () -> IO ()
+contextDoAsyncImpl alive w msgC inwin action =
+    C.writeChan msgC $ ReqExecuteAsync $ if inwin 
+                                            then do -- If needed to be run in this window, then only do it if window still exists
+                                                alive' <- readIORef alive 
+                                                when alive' $ do 
+                                                        GLFW.makeContextCurrent (Just w)
+                                                        action
+                                            else
+                                                action
 
 -- Do action while renderhtread is uncurrent 
-mainthreadDoWhileContextUncurrent :: C.Chan Message -> IO a -> IO a
-mainthreadDoWhileContextUncurrent msgC mainAction = do
+mainthreadDoWhileContextUncurrent :: C.Chan Message -> Resource.Window -> IO a -> IO a
+mainthreadDoWhileContextUncurrent msgC w mainAction = do
     syncMainWait <- C.newEmptyMVar
     syncRendWait <- C.newEmptyMVar
     let m = do GLFW.makeContextCurrent Nothing
                C.putMVar syncMainWait ()                                                                    
                C.takeMVar syncRendWait -- Stop other async code from making window current (e.g. finalizers)
-    C.writeChan msgC . Just $ ReqExecute m Nothing
+               GLFW.makeContextCurrent (Just w)
+               
+    C.writeChan msgC $ ReqExecuteAsync m 
     C.takeMVar syncMainWait -- Wait for render thread to make window uncurrent
     ret <- mainAction
     C.putMVar syncRendWait () -- Release render thread
@@ -118,8 +126,10 @@ mainthreadDoWhileContextUncurrent msgC mainAction = do
 
 -- Request that the OpenGL context thread shut down
 contextDeleteImpl :: C.Chan Message -> IO ()
-contextDeleteImpl msgC =
-    C.writeChan msgC Nothing
+contextDeleteImpl msgC = do
+    syncMainWait <- C.newEmptyMVar
+    C.writeChan msgC $ ReqShutDown syncMainWait
+    C.takeMVar syncMainWait
 
 ------------------------------------------------------------------------------
 -- Exposed window actions

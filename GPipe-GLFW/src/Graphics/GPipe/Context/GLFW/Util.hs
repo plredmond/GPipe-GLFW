@@ -11,9 +11,9 @@ import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 -- Util
 
 swapBuffers :: GLFW.Window -> IO ()
-swapBuffers w = GLFW.swapBuffers w
+swapBuffers = GLFW.swapBuffers
 
 getFramebufferSize :: GLFW.Window -> IO (Int, Int)
-getFramebufferSize w = GLFW.getFramebufferSize w
+getFramebufferSize = GLFW.getFramebufferSize
 
 -- eof
