@@ -40,4 +40,4 @@ source-repository this
   type:     git
   location: git@github.com:plredmond/GPipe-GLFW.git
   subdir:   GPipe-GLFW
-  tag:      v1.0
+  tag:      v1.1
