@@ -3,7 +3,8 @@
 module Graphics.GPipe.Context.GLFW.Resource
 ( newContext
 , newSharedContext
-, WindowConf
+, WindowConf(..)
+, defaultWindowConf
 , Window
 , ErrorCallback
 ) where

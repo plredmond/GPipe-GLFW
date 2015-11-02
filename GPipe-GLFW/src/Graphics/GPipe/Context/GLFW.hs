@@ -1,7 +1,9 @@
 {-# LANGUAGE RankNTypes, GADTs #-}
 module Graphics.GPipe.Context.GLFW
 ( newContext,
+  newContext',
   GLFWWindow(),
+  WindowConf(..), defaultWindowConf,
   getCursorPos, getMouseButton, getKey, windowShouldClose,
   MouseButtonState(..), MouseButton(..), KeyState(..), Key(..),
 ) where
@@ -9,12 +11,13 @@ module Graphics.GPipe.Context.GLFW
 import qualified Control.Concurrent as C
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
+import Graphics.GPipe.Context.GLFW.Resource (WindowConf, defaultWindowConf)
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
 import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow, pollEvents)
 
 import Control.Monad.IO.Class (MonadIO)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
-import Graphics.UI.GLFW (MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
+import Graphics.UI.GLFW (WindowHint, MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
 import Data.IORef
 import Control.Monad (when)
 
@@ -30,23 +33,32 @@ data Message where
 newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window }
 
 -- | The context factory which facilitates use of GLFW with GPipe.
---   This has to be run from the main thread.
+-- This has to be run from the main thread.
 newContext :: ContextFactory c ds GLFWWindow
-newContext fmt = do
+newContext = newContext' [] defaultWindowConf
+
+-- | The context factory which facilitates use of GLFW with GPipe.
+-- This has to be run from the main thread.
+--
+-- Accepts two extra parameters compared to 'newContext': a list of GLFW window
+-- hints and a 'WindowConf' which determines the width, height and title of the
+-- window.
+newContext' :: [WindowHint] -> WindowConf -> ContextFactory c ds GLFWWindow
+newContext' extraHints conf fmt = do
     chReply <- C.newEmptyMVar
     _ <- C.forkOS $ begin chReply
     msgC <- C.takeMVar chReply
-    h <- createContext msgC Nothing fmt
+    h <- createContext extraHints conf msgC Nothing fmt
     contextDoAsync h True (return ()) -- First action on render thread: Just make window current
     return h
 
-createContext :: C.Chan Message -> Maybe Resource.Window -> ContextFactory c ds GLFWWindow
-createContext msgC share fmt = do
+createContext :: [WindowHint] -> WindowConf -> C.Chan Message -> Maybe Resource.Window -> ContextFactory c ds GLFWWindow
+createContext extraHints conf msgC share fmt = do
     w <- makeContext share
     GLFW.makeContextCurrent Nothing
     alive <- newIORef True -- This will always be used from render thread so no need to synchronize
     return ContextHandle
-        { newSharedContext = mainthreadDoWhileContextUncurrent msgC w . createContext msgC (Just w) -- Create context on this thread while parent is uncurrent, then make parent current
+        { newSharedContext = mainthreadDoWhileContextUncurrent msgC w . createContext extraHints conf msgC (Just w) -- Create context on this thread while parent is uncurrent, then make parent current
         , contextDoSync = contextDoSyncImpl w msgC
         , contextDoAsync = contextDoAsyncImpl alive w msgC
         , contextSwap = contextDoSyncImpl w msgC False $ Util.swapBuffers w -- explicitly do it on the render thread to sync properly, GLFW allows this
@@ -58,10 +70,10 @@ createContext msgC share fmt = do
         , contextWindow = GLFWWindow w
         }
     where
-        hints = Format.toHints fmt
+        hints = Format.toHints fmt ++ extraHints
         makeContext :: Maybe Resource.Window -> IO Resource.Window
-        makeContext Nothing = Resource.newContext Nothing hints Nothing
-        makeContext (Just s) = Resource.newSharedContext s hints Nothing
+        makeContext Nothing = Resource.newContext Nothing hints (Just conf)
+        makeContext (Just s) = Resource.newSharedContext s hints (Just conf)
 
 
 ------------------------------------------------------------------------------
