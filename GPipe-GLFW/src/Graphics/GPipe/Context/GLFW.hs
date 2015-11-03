@@ -2,6 +2,7 @@
 module Graphics.GPipe.Context.GLFW
 ( newContext,
   newContext',
+  BadWindowHintsException(..),
   GLFWWindow(),
   WindowConf(..), defaultWindowConf,
   getCursorPos, getMouseButton, getKey, windowShouldClose,
@@ -17,9 +18,10 @@ import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey,
 
 import Control.Monad.IO.Class (MonadIO)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
-import Graphics.UI.GLFW (WindowHint, MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
+import Graphics.UI.GLFW (WindowHint(..), MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
 import Data.IORef
-import Control.Monad (when)
+import Control.Monad (when, unless)
+import Control.Exception (Exception, throwIO)
 
 data Message where
     ReqShutDown :: C.MVar () -> Message
@@ -32,6 +34,13 @@ data Message where
 -- | An opaque value representing a GLFW OpenGL context window.
 newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window }
 
+-- | An exception which is thrown when you try to use 'WindowHint's that need to
+-- be controlled by this library. Contains a list of the offending hints.
+data BadWindowHintsException = BadWindowHintsException [WindowHint]
+                                deriving (Show)
+
+instance Exception BadWindowHintsException
+
 -- | The context factory which facilitates use of GLFW with GPipe.
 -- This has to be run from the main thread.
 newContext :: ContextFactory c ds GLFWWindow
@@ -40,11 +49,32 @@ newContext = newContext' [] defaultWindowConf
 -- | The context factory which facilitates use of GLFW with GPipe.
 -- This has to be run from the main thread.
 --
--- Accepts two extra parameters compared to 'newContext': a list of GLFW window
--- hints and a 'WindowConf' which determines the width, height and title of the
--- window.
+-- Accepts two extra parameters compared to 'newContext': a list of GLFW
+-- 'WindowHint's and a 'WindowConf' which determines the width, height and title
+-- of the window.
+--
+-- Throws a 'BadWindowHintsException' if you use hints that need to be
+-- controlled by this library. Disallowed hints are:
+--
+-- > WindowHint'sRGBCapable
+-- > WindowHint'Visible
+-- > WindowHint'RedBits
+-- > WindowHint'GreenBits
+-- > WindowHint'BlueBits
+-- > WindowHint'AlphaBits
+-- > WindowHint'DepthBits
+-- > WindowHint'StencilBits
+-- > WindowHint'ContextVersionMajor
+-- > WindowHint'ContextVersionMinor
+-- > WindowHint'OpenGLForwardCompat
+-- > WindowHint'OpenGLProfile
+--
 newContext' :: [WindowHint] -> WindowConf -> ContextFactory c ds GLFWWindow
 newContext' extraHints conf fmt = do
+    let badHints = filter (not . allowedHint) extraHints
+    unless (null badHints) $
+      throwIO (BadWindowHintsException badHints)
+
     chReply <- C.newEmptyMVar
     _ <- C.forkOS $ begin chReply
     msgC <- C.takeMVar chReply
@@ -75,6 +105,21 @@ createContext extraHints conf msgC share fmt = do
         makeContext Nothing = Resource.newContext Nothing hints (Just conf)
         makeContext (Just s) = Resource.newSharedContext s hints (Just conf)
 
+-- | Is the user allowed to use the given WindowHint?
+allowedHint :: WindowHint -> Bool
+allowedHint (WindowHint'sRGBCapable _) = False
+allowedHint (WindowHint'Visible _) = False
+allowedHint (WindowHint'RedBits _) = False
+allowedHint (WindowHint'GreenBits _) = False
+allowedHint (WindowHint'BlueBits _) = False
+allowedHint (WindowHint'AlphaBits _) = False
+allowedHint (WindowHint'DepthBits _) = False
+allowedHint (WindowHint'StencilBits _) = False
+allowedHint (WindowHint'ContextVersionMajor _) = False
+allowedHint (WindowHint'ContextVersionMinor _) = False
+allowedHint (WindowHint'OpenGLForwardCompat _) = False
+allowedHint (WindowHint'OpenGLProfile _) = False
+allowedHint _ = True
 
 ------------------------------------------------------------------------------
 -- OpenGL Context thread
