@@ -15,7 +15,7 @@ import qualified Control.Exception as Exc
 import qualified Data.Maybe as M
 import qualified Text.Printf as P
 
-#if __GLASGOW_HASKELL__ <= 708
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>))
 #endif
 
