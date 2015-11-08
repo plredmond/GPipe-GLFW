@@ -1,4 +1,5 @@
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE CPP #-}
 -- Bracketed GLFW resource initializers
 module Graphics.GPipe.Context.GLFW.Resource
 ( newContext
@@ -14,7 +15,9 @@ import qualified Control.Exception as Exc
 import qualified Data.Maybe as M
 import qualified Text.Printf as P
 
+#if __GLASGOW_HASKELL__ <= 708
 import Control.Applicative ((<$>))
+#endif
 
 ------------------------------------------------------------------------------
 -- Types & Constants
