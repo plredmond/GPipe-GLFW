@@ -107,6 +107,11 @@ createContext extraHints conf msgC share fmt = do
         makeContext (Just s) = Resource.newSharedContext s hints (Just conf)
 
 -- | Gets the underlying 'GLFW.Window' object out of the 'GLFWWindow'.
+--
+-- Can be used inside a 'ContextT' as follows:
+--
+-- > withContextWindow (\win -> doSomething (getGLFWWindow win))
+--
 getGLFWWindow :: GLFWWindow -> GLFW.Window
 getGLFWWindow = unGLFWWindow
 
