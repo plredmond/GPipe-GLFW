@@ -4,6 +4,7 @@ module Graphics.GPipe.Context.GLFW
   newContext',
   BadWindowHintsException(..),
   GLFWWindow(),
+  getGLFWWindow,
   WindowConf(..), defaultWindowConf,
   getCursorPos, getMouseButton, getKey, windowShouldClose,
   MouseButtonState(..), MouseButton(..), KeyState(..), Key(..),
@@ -14,7 +15,7 @@ import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import Graphics.GPipe.Context.GLFW.Resource (WindowConf, defaultWindowConf)
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
-import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow, pollEvents)
+import qualified Graphics.UI.GLFW as GLFW (Window, getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow, pollEvents)
 
 import Control.Monad.IO.Class (MonadIO)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
@@ -104,6 +105,10 @@ createContext extraHints conf msgC share fmt = do
         makeContext :: Maybe Resource.Window -> IO Resource.Window
         makeContext Nothing = Resource.newContext Nothing hints (Just conf)
         makeContext (Just s) = Resource.newSharedContext s hints (Just conf)
+
+-- | Gets the underlying 'GLFW.Window' object out of the 'GLFWWindow'.
+getGLFWWindow :: GLFWWindow -> GLFW.Window
+getGLFWWindow = unGLFWWindow
 
 -- | Is the user allowed to use the given WindowHint?
 allowedHint :: WindowHint -> Bool
