@@ -26,15 +26,6 @@ import Control.Applicative ((<$>))
 -- | A value representing a GLFW OpenGL context window.
 newtype GLFWWindow = GLFWWindow
   {
-    -- | Gets the underlying 'GLFW.Window' object out of the 'GLFWWindow'.
-    --
-    -- Can be used inside a 'Graphics.GPipe.Context.ContextT' as follows:
-    --
-    -- > withContextWindow (\win -> doSomething (getGLFWWindow win))
-    --
-    -- WARNING: It is possible to do bad things with this. For example, using
-    -- 'GLFW.makeContextCurrent' could cause GPipe to lose control of the window,
-    -- and 'GLFW.destroyWindow' is bad for obvious reasons.
     getGLFWWindow :: GLFW.Window
   }
 
