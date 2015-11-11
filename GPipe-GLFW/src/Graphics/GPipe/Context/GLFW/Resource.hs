@@ -1,10 +1,11 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE CPP #-}
--- Bracketed GLFW resource initializers
+-- | Bracketed GLFW resource initializers.
 module Graphics.GPipe.Context.GLFW.Resource
 ( newContext
 , newSharedContext
 , WindowConf(..)
+, GLFWWindow(..)
 , defaultWindowConf
 , Window
 , ErrorCallback
@@ -22,6 +23,21 @@ import Control.Applicative ((<$>))
 ------------------------------------------------------------------------------
 -- Types & Constants
 
+-- | A value representing a GLFW OpenGL context window.
+newtype GLFWWindow = GLFWWindow
+  {
+    -- | Gets the underlying 'GLFW.Window' object out of the 'GLFWWindow'.
+    --
+    -- Can be used inside a 'Graphics.GPipe.Context.ContextT' as follows:
+    --
+    -- > withContextWindow (\win -> doSomething (getGLFWWindow win))
+    --
+    -- WARNING: It is possible to do bad things with this. For example, using
+    -- 'GLFW.makeContextCurrent' could cause GPipe to lose control of the window,
+    -- and 'GLFW.destroyWindow' is bad for obvious reasons.
+    getGLFWWindow :: GLFW.Window
+  }
+
 -- reexports
 type Window = GLFW.Window
 type ErrorCallback = GLFW.ErrorCallback
@@ -30,13 +46,17 @@ type ErrorCallback = GLFW.ErrorCallback
 defaultOnError :: ErrorCallback
 defaultOnError err msg = fail $ P.printf "%s: %s" (show err) msg
 
--- initial window size & title suggestions
+-- | Initial window size and title suggestions for GLFW. The window will usually
+-- be set to the given size with the given title, unless the window manager
+-- overrides this.
 data WindowConf = WindowConf
     { width :: Int
     , height :: Int
     , title :: String
     }
 
+-- | A set of sensible defaults for the 'WindowConf'. Used by
+-- 'Graphics.GPipe.Context.GLFW.newContext'.
 defaultWindowConf :: WindowConf
 defaultWindowConf = WindowConf 1024 768 "GLFW Window"
 

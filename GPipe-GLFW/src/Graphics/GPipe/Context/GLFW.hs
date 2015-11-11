@@ -1,25 +1,24 @@
 {-# LANGUAGE RankNTypes, GADTs #-}
 module Graphics.GPipe.Context.GLFW
-( newContext,
+(
+  -- * Creating contexts
+  newContext,
   newContext',
+  -- * Data types
   BadWindowHintsException(..),
   GLFWWindow(),
-  getGLFWWindow,
-  WindowConf(..), defaultWindowConf,
-  getCursorPos, getMouseButton, getKey, windowShouldClose,
-  MouseButtonState(..), MouseButton(..), KeyState(..), Key(..),
+  WindowConf(..), defaultWindowConf
 ) where
 
 import qualified Control.Concurrent as C
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
-import Graphics.GPipe.Context.GLFW.Resource (WindowConf, defaultWindowConf)
+import Graphics.GPipe.Context.GLFW.Resource (WindowConf, defaultWindowConf, GLFWWindow(..))
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
-import qualified Graphics.UI.GLFW as GLFW (Window, getCursorPos, getMouseButton, getKey, windowShouldClose, makeContextCurrent, destroyWindow, pollEvents)
+import qualified Graphics.UI.GLFW as GLFW (makeContextCurrent, destroyWindow, pollEvents)
 
-import Control.Monad.IO.Class (MonadIO)
-import Graphics.GPipe.Context (ContextFactory, ContextHandle(..),ContextT,withContextWindow)
-import Graphics.UI.GLFW (WindowHint(..), MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
+import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
+import Graphics.UI.GLFW (WindowHint(..))
 import Data.IORef
 import Control.Monad (when, unless)
 import Control.Exception (Exception, throwIO)
@@ -31,9 +30,6 @@ data Message where
 
 ------------------------------------------------------------------------------
 -- Top-level
-
--- | An opaque value representing a GLFW OpenGL context window.
-newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window }
 
 -- | An exception which is thrown when you try to use 'WindowHint's that need to
 -- be controlled by this library. Contains a list of the offending hints.
@@ -105,15 +101,6 @@ createContext extraHints conf msgC share fmt = do
         makeContext :: Maybe Resource.Window -> IO Resource.Window
         makeContext Nothing = Resource.newContext Nothing hints (Just conf)
         makeContext (Just s) = Resource.newSharedContext s hints (Just conf)
-
--- | Gets the underlying 'GLFW.Window' object out of the 'GLFWWindow'.
---
--- Can be used inside a 'ContextT' as follows:
---
--- > withContextWindow (\win -> doSomething (getGLFWWindow win))
---
-getGLFWWindow :: GLFWWindow -> GLFW.Window
-getGLFWWindow = unGLFWWindow
 
 -- | Is the user allowed to use the given WindowHint?
 allowedHint :: WindowHint -> Bool
@@ -197,20 +184,5 @@ contextDeleteImpl msgC = do
     syncMainWait <- C.newEmptyMVar
     C.writeChan msgC $ ReqShutDown syncMainWait
     C.takeMVar syncMainWait
-
-------------------------------------------------------------------------------
--- Exposed window actions
-
-getCursorPos :: MonadIO m => ContextT GLFWWindow os f m (Double, Double)
-getCursorPos = withContextWindow (GLFW.getCursorPos . unGLFWWindow)
-
-getMouseButton :: MonadIO m => MouseButton -> ContextT GLFWWindow os f m MouseButtonState
-getMouseButton mb = withContextWindow (\(GLFWWindow w) -> GLFW.getMouseButton w mb)
-
-getKey :: MonadIO m => Key -> ContextT GLFWWindow os f m KeyState
-getKey k = withContextWindow (\(GLFWWindow w) -> GLFW.getKey w k)
-
-windowShouldClose :: MonadIO m => ContextT GLFWWindow os f m Bool
-windowShouldClose = withContextWindow (GLFW.windowShouldClose . unGLFWWindow)
 
 -- eof
