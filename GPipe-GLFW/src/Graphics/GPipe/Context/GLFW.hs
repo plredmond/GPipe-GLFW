@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, GADTs #-}
+{-# LANGUAGE RankNTypes, GADTs, DeriveDataTypeable #-}
 module Graphics.GPipe.Context.GLFW
 ( newContext,
   newContext',
@@ -22,6 +22,7 @@ import Graphics.UI.GLFW (WindowHint(..), MouseButtonState(..), MouseButton(..), 
 import Data.IORef
 import Control.Monad (when, unless)
 import Control.Exception (Exception, throwIO)
+import Data.Typeable (Typeable)
 
 data Message where
     ReqShutDown :: C.MVar () -> Message
@@ -37,7 +38,7 @@ newtype GLFWWindow = GLFWWindow { unGLFWWindow :: Resource.Window }
 -- | An exception which is thrown when you try to use 'WindowHint's that need to
 -- be controlled by this library. Contains a list of the offending hints.
 data BadWindowHintsException = BadWindowHintsException [WindowHint]
-                                deriving (Show)
+                                deriving (Show, Typeable)
 
 instance Exception BadWindowHintsException
 
