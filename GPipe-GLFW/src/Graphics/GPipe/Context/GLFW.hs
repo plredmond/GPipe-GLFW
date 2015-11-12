@@ -7,16 +7,19 @@ module Graphics.GPipe.Context.GLFW
   -- * Data types
   BadWindowHintsException(..),
   GLFWWindow(),
-  WindowConf(..), defaultWindowConf
+  WindowConf(..), defaultWindowConf,
+  -- * Re-exported window actions
+  module Input
 ) where
 
-import qualified Control.Concurrent as C
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
+import Graphics.GPipe.Context.GLFW.Input as Input
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import Graphics.GPipe.Context.GLFW.Resource (WindowConf, defaultWindowConf, GLFWWindow(..))
 import qualified Graphics.GPipe.Context.GLFW.Util as Util
-import qualified Graphics.UI.GLFW as GLFW (makeContextCurrent, destroyWindow, pollEvents)
 
+import qualified Control.Concurrent as C
+import qualified Graphics.UI.GLFW as GLFW (makeContextCurrent, destroyWindow, pollEvents)
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
 import Graphics.UI.GLFW (WindowHint(..))
 import Data.IORef
