@@ -6,17 +6,18 @@ module Graphics.GPipe.Context.GLFW.Input
   getCursorPos,
   getMouseButton,
   getKey,
+  registerScrollCallback,
   windowShouldClose,
   -- * Re-exported from GLFW
-  MouseButtonState(..), MouseButton(..), KeyState(..), Key(..)
+  MouseButtonState(..), MouseButton(..), KeyState(..), Key(..), ScrollCallback
 ) where
 
 import Graphics.GPipe.Context.GLFW.Unsafe (GLFWWindow(..))
 
 import Control.Monad.IO.Class (MonadIO)
 import Graphics.GPipe.Context (ContextT, withContextWindow)
-import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose)
-import Graphics.UI.GLFW (MouseButtonState(..), MouseButton(..), KeyState(..), Key(..))
+import qualified Graphics.UI.GLFW as GLFW (getCursorPos, getMouseButton, getKey, windowShouldClose, setScrollCallback)
+import Graphics.UI.GLFW (MouseButtonState(..), MouseButton(..), KeyState(..), Key(..), ScrollCallback)
 
 -- | Gets the current cursor position, in pixels relative to the top-left corner
 -- of the window.
@@ -30,6 +31,10 @@ getMouseButton mb = withContextWindow (\(GLFWWindow w) -> GLFW.getMouseButton w 
 -- | Gets the state of the specified 'Key'.
 getKey :: MonadIO m => Key -> ContextT GLFWWindow os f m KeyState
 getKey k = withContextWindow (\(GLFWWindow w) -> GLFW.getKey w k)
+
+-- | Registers the specified 'ScrollCallback'.
+registerScrollCallback :: MonadIO m => Maybe ScrollCallback -> ContextT GLFWWindow os f m ()
+registerScrollCallback callback = withContextWindow (\win -> GLFW.setScrollCallback (getGLFWWindow win) callback)
 
 -- | Returns 'True' if the window should close (e.g. because the user pressed
 -- the \'x\' button).
