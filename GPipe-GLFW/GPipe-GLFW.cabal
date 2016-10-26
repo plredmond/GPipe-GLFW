@@ -1,5 +1,5 @@
 name:                GPipe-GLFW
-version:             1.2.2
+version:             1.3.0
 cabal-version:       >=1.10
 build-type:          Simple
 author:              Patrick Redmond
@@ -14,15 +14,15 @@ description:
                 GPipe-GLFW is a utility library to enable the use of GLFW as
                 the OpenGL window and context handler for GPipe. GPipe is a
                 typesafe functional API based on the conceptual model of
-                OpenGL, but without the imperative state machine.
+                  OpenGL, but without the imperative state machine.
 maintainer:     Patrick Redmond
 
 library
   hs-source-dirs:      src
-  build-depends:       base == 4.9.*
-                     , transformers
-                     , GLFW-b
-                     , GPipe
+  build-depends:       base         == 4.9.*
+                     , transformers == 0.5.2.*
+                     , GLFW-b       == 1.4.8.*
+                     , GPipe        == 2.1.*
 
   ghc-options:         -Wall
   default-language:    Haskell2010
@@ -43,4 +43,4 @@ source-repository this
   type:     git
   location: git@github.com:plredmond/GPipe-GLFW.git
   subdir:   GPipe-GLFW
-  tag:      v1.2.2
+  tag:      v1.3.0
