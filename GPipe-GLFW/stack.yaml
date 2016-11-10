@@ -3,4 +3,4 @@ packages:
 - '.'
 extra-deps:
 - GPipe-2.1.8
-resolver: lts-7.0
+resolver: lts-7.8
