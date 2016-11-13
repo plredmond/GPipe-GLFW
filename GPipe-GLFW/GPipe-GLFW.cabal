@@ -49,11 +49,11 @@ executable gpipe-glfw-smoketests
 
 source-repository head
   type:     git
-  location: git@github.com:plredmond/GPipe-GLFW.git
+  location: https://github.com/plredmond/GPipe-GLFW.git
   subdir:   GPipe-GLFW
 
 source-repository this
   type:     git
-  location: git@github.com:plredmond/GPipe-GLFW.git
+  location: https://github.com/plredmond/GPipe-GLFW.git
   subdir:   GPipe-GLFW
   tag:      v1.2.3
