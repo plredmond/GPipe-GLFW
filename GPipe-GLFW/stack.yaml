@@ -1,5 +1,6 @@
 flags: {}
 packages:
 - '.'
-extra-deps: []
-resolver: lts-5.9
+extra-deps:
+- GPipe-2.1.8
+resolver: lts-7.8
