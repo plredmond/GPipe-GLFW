@@ -34,8 +34,7 @@ library
                        Graphics.GPipe.Context.GLFW.Util
                        Graphics.GPipe.Context.GLFW.Format
 
-test-suite GPipe-GLFW-test
-  type:                exitcode-stdio-1.0
+executable gpipe-glfw-smoketests
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
