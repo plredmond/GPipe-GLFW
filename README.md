@@ -25,6 +25,8 @@ Find GPipe-GLFW on
 
 ## Changes
 
+* 1.2.3
+    * [SwiftsNamesake](https://github.com/SwiftsNamesake) bumped version constraints.
 * 1.2.2
     * [grtlr](https://github.com/grtlr) added scroll callback registration.
     * Add a readme to be a good citizen and update documentation.
