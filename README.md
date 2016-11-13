@@ -23,10 +23,17 @@ Find GPipe-GLFW on
   * With Nix: Use `stack build` and the [system package dependencies listed in `stack.yaml` will be fetched for a build shell](https://github.com/commercialhaskell/stack/blob/master/doc/nix_integration.md).
   * Without Nix: Install the system package dependencies listed in `stack.yaml` using your system's package manager. Then build with `stack build`.
 
+## Running smoke-tests
+
+The test suite runs a brief 3D demo which requires a correctly configured OpenGL environment.
+Currently the test suite is disabled under `nix-build` (`doCheck` is set to `false` in `default.nix`) and will fail when run from `stack test` if your environment isn't configured properly.
+Suggestions for improving this part of the codebase are welcome.
+
 ## Changes
 
 * 1.2.3
     * [SwiftsNamesake](https://github.com/SwiftsNamesake) bumped version constraints.
+    * Add a smoke test and stubs for shared-context tests.
 * 1.2.2
     * [grtlr](https://github.com/grtlr) added scroll callback registration.
     * Add a readme to be a good citizen and update documentation.
