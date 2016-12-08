@@ -5,8 +5,6 @@
 -- It is recommended to read about GLFW input handling as it pertains to your domain,
 -- especially the __Event processing__ section:
 -- <http://www.glfw.org/docs/latest/input_guide.html#events>.
---
--- Note: Not all GLFW input functionality is available in "GLFW-b".
 
 module Graphics.GPipe.Context.GLFW.Input (
 

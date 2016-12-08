@@ -2,7 +2,7 @@
 
 **GPipe-GLFW** is a utility library to enable the use of [GLFW](http://www.glfw.org/)
 as the OpenGL window and context handler for GPipe.
-[What is GPipe?](https://github.com/plredmond/GPipe-GLFW#what-is-gpipe).
+[What is GPipe?](#what-is-gpipe).
 
 Find GPipe-GLFW on
 [github](https://github.com/plredmond/GPipe-GLFW),
@@ -25,6 +25,8 @@ Find GPipe-GLFW on
 
 ## Changes
 
+* 1.3.0
+    * Overhaul `Graphics.GPipe.Context.GLFW.Input` to expose most of the functionality in [GLFW Input guide](http://www.glfw.org/docs/latest/input_guide.html).
 * 1.2.3
     * [SwiftsNamesake](https://github.com/SwiftsNamesake) bumped version constraints.
     * Add a smoke test and stubs for shared-context tests.
