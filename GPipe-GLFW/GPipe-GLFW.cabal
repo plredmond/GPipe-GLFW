@@ -27,9 +27,7 @@ library
   default-language:    Haskell2010
   exposed-modules:     Graphics.GPipe.Context.GLFW
                        Graphics.GPipe.Context.GLFW.Input
-                       Graphics.GPipe.Context.GLFW.Unsafe
   other-modules:       Graphics.GPipe.Context.GLFW.Resource
-                       Graphics.GPipe.Context.GLFW.Util
                        Graphics.GPipe.Context.GLFW.Format
 
 executable gpipe-glfw-smoketests

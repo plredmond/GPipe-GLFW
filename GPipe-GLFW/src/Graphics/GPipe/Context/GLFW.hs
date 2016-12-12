@@ -16,10 +16,10 @@ import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import Graphics.GPipe.Context.GLFW.Input as Input
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import Graphics.GPipe.Context.GLFW.Resource (WindowConf, defaultWindowConf, GLFWWindow(..))
-import qualified Graphics.GPipe.Context.GLFW.Util as Util
 
 import qualified Control.Concurrent as C
 import qualified Graphics.UI.GLFW as GLFW (makeContextCurrent, destroyWindow, pollEvents)
+import qualified Graphics.UI.GLFW as GLFW
 import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
 import Graphics.UI.GLFW (WindowHint(..))
 import Data.IORef
@@ -92,8 +92,10 @@ createContext extraHints conf msgC share fmt = do
         { newSharedContext = mainthreadDoWhileContextUncurrent msgC w . createContext extraHints conf msgC (Just w) -- Create context on this thread while parent is uncurrent, then make parent current
         , contextDoSync = contextDoSyncImpl w msgC
         , contextDoAsync = contextDoAsyncImpl alive w msgC
-        , contextSwap = contextDoSyncImpl w msgC False $ Util.swapBuffers w -- explicitly do it on the render thread to sync properly, GLFW allows this
-        , contextFrameBufferSize = Util.getFramebufferSize w -- Runs on mainthread
+        , contextSwap = contextDoSyncImpl w msgC False -- WTF BOOL PARAM
+            $ GLFW.swapBuffers w
+            -- ^ explicitly do it on the render thread to sync properly, GLFW allows this
+        , contextFrameBufferSize = GLFW.getFramebufferSize w -- Runs on mainthread
         , contextDelete = case share of
             Nothing -> do contextDeleteImpl msgC -- This return when render thread is uncurrent and is shutting down (cannot serve any finalizers)
                           GLFW.destroyWindow w

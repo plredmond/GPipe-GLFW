@@ -129,14 +129,9 @@ module Graphics.GPipe.Context.GLFW.Input (
  --     * `glfwSetJoystickCallback`
  --     * `glfwGetTimerValue`
  --     * `glfwGetTimerFrequency`
-
- -- * Deprecated
- GLFW.ScrollCallback,
- registerScrollCallback,
- windowShouldClose,
  ) where
 
-import Graphics.GPipe.Context.GLFW.Unsafe (GLFWWindow(..))
+import Graphics.GPipe.Context.GLFW.Resource (GLFWWindow(..))
 
 import Control.Monad.IO.Class (MonadIO)
 import Graphics.GPipe.Context (ContextT, withContextWindow)
@@ -266,15 +261,3 @@ setClipboardString = wrapWindowFun GLFW.setClipboardString
 -- | Register or unregister a callback to receive file paths when files are dropped onto the window.
 setDropCallback :: MonadIO m => Maybe ([String] -> IO ()) -> ContextT GLFWWindow os f m ()
 setDropCallback = wrapCallbackSetter GLFW.setDropCallback
-
-{- Deprecated -}
-
--- | Register or unregister a 'ScrollCallback' to receive scroll events.
--- Deprecated and will be removed. Prefer to use 'setScrollCallback'.
-registerScrollCallback :: MonadIO m => Maybe GLFW.ScrollCallback -> ContextT GLFWWindow os f m ()
-registerScrollCallback callback = withWindow $ \w -> GLFW.setScrollCallback w callback
-
--- | Returns 'True' if the window should close (e.g. because the user pressed the \'x\' button).
--- Deprecated and will be moved to a different module.
-windowShouldClose :: MonadIO m => ContextT GLFWWindow os f m Bool
-windowShouldClose = withWindow GLFW.windowShouldClose
