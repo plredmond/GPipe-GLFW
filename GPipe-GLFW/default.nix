@@ -1,5 +1,5 @@
-{ mkDerivation, base, exception-transformers, GLFW-b, GPipe, stdenv
-, transformers
+{ mkDerivation, async, base, exception-transformers, GLFW-b, GPipe
+, stdenv, transformers
 }:
 mkDerivation {
   pname = "GPipe-GLFW";
@@ -7,7 +7,9 @@ mkDerivation {
   src = ./.;
   isLibrary = true;
   isExecutable = true;
-  libraryHaskellDepends = [ base GLFW-b GPipe transformers ];
+  libraryHaskellDepends = [
+    async base exception-transformers GLFW-b GPipe transformers
+  ];
   executableHaskellDepends = [
     base exception-transformers GPipe transformers
   ];

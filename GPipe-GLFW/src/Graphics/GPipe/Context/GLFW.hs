@@ -1,194 +1,127 @@
-{-# LANGUAGE RankNTypes, GADTs, DeriveDataTypeable #-}
 module Graphics.GPipe.Context.GLFW
-(
-  -- * Creating contexts
-  newContext,
-  newContext',
+( -- * Creating contexts
+  simpleContext
+, context
   -- * Data types
-  BadWindowHintsException(..),
-  GLFWWindow(),
-  WindowConf(..), defaultWindowConf,
-  -- * Re-exported window actions
-  module Input
+, WrappedWindow()
+, WindowConfig(..)
+, EventPolicy(..)
+, UnsafeWindowHintsException(..)
 ) where
 
-import qualified Graphics.GPipe.Context.GLFW.Format as Format
-import Graphics.GPipe.Context.GLFW.Input as Input
-import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
-import Graphics.GPipe.Context.GLFW.Resource (WindowConf, defaultWindowConf, GLFWWindow(..))
+-- stdlib
+import Text.Printf (printf)
+import Control.Monad (unless)
+import Control.Exception (throwIO)
+import Control.Concurrent
+    ( newEmptyMVar, takeMVar, putMVar
+    , Chan, newChan, readChan, writeChan
+    , myThreadId
+    )
+import Control.Concurrent.Async
+    ( Async
+    , withAsyncBound
+    , wait
+    )
 
-import qualified Control.Concurrent as C
-import qualified Graphics.UI.GLFW as GLFW (makeContextCurrent, destroyWindow, pollEvents)
+-- third party
 import qualified Graphics.UI.GLFW as GLFW
-import Graphics.GPipe.Context (ContextFactory, ContextHandle(..))
-import Graphics.UI.GLFW (WindowHint(..))
-import Data.IORef
-import Control.Monad (when, unless)
-import Control.Exception (Exception, throwIO)
-import Data.Typeable (Typeable)
+import Graphics.GPipe.Context (ContextHandle(..), ContextManager)
 
-data Message where
-    ReqShutDown :: C.MVar () -> Message
-    ReqExecuteSync :: forall a. IO a -> C.MVar a -> Message
-    ReqExecuteAsync :: IO () -> Message
+-- local
+import qualified Graphics.GPipe.Context.GLFW.Format as Format
+import Graphics.GPipe.Context.GLFW.Format (UnsafeWindowHintsException(..))
+import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
+import Graphics.GPipe.Context.GLFW.Resource (WrappedWindow(), WindowConfig(..), EventPolicy(..))
 
-------------------------------------------------------------------------------
--- Top-level
+-- update gpipe-glfw:
+--  - reexport Input module and check how it renders in haddocks
+--  - make it monad generic (currently tied to IO, and that doesn't work with shared contexts)
+--  - find a way to take config args for shared contexts
 
--- | An exception which is thrown when you try to use 'WindowHint's that need to
--- be controlled by this library. Contains a list of the offending hints.
-data BadWindowHintsException = BadWindowHintsException [WindowHint]
-                                deriving (Show, Typeable)
+data RPC
+    = Execute (IO ())
+    | Shutdown
 
-instance Exception BadWindowHintsException
+pp :: String -> IO ()
+pp msg = do
+    t <- myThreadId
+    c <- GLFW.getCurrentContext
+    printf "%s [%s]: %s\n" (show t) (show c) msg
 
--- | The context factory which facilitates use of GLFW with GPipe.
--- This has to be run from the main thread.
-newContext :: ContextFactory c ds GLFWWindow
-newContext = newContext' [] defaultWindowConf
+-- | A context for a `640`x`480` window with the given `title` which polls for events after every frame. Logs errors.
+simpleContext :: String -> ContextManager c ds WrappedWindow IO a
+simpleContext title = context
+    (\err msg -> printf "GLFW Error [%s]: %s\n" (show err) msg)
+    (WindowConfig 640 480 title Poll Nothing [])
 
--- | The context factory which facilitates use of GLFW with GPipe.
--- This has to be run from the main thread.
---
--- Accepts two extra parameters compared to 'newContext': a list of GLFW
--- 'WindowHint's and a 'WindowConf' which determines the width, height and title
--- of the window.
---
--- Throws a 'BadWindowHintsException' if you use hints that need to be
--- controlled by this library. Disallowed hints are:
---
--- > WindowHint'sRGBCapable
--- > WindowHint'Visible
--- > WindowHint'RedBits
--- > WindowHint'GreenBits
--- > WindowHint'BlueBits
--- > WindowHint'AlphaBits
--- > WindowHint'DepthBits
--- > WindowHint'StencilBits
--- > WindowHint'ContextVersionMajor
--- > WindowHint'ContextVersionMinor
--- > WindowHint'OpenGLForwardCompat
--- > WindowHint'OpenGLProfile
---
-newContext' :: [WindowHint] -> WindowConf -> ContextFactory c ds GLFWWindow
-newContext' extraHints conf fmt = do
-    let badHints = filter (not . allowedHint) extraHints
+-- | A fully configurable Context.
+context :: GLFW.ErrorCallback -> WindowConfig -> ContextManager c ds WrappedWindow IO a
+context errorCallback windowConfig format action = do
+    pp "main says hi"
+    comm <- newChan
+    runFork comm (Left errorCallback) windowConfig format action
+
+runFork :: Chan RPC -> Either GLFW.ErrorCallback GLFW.Window -> WindowConfig -> ContextManager c ds WrappedWindow IO a
+runFork comm variety windowConfig format action = do
     unless (null badHints) $
-      throwIO (BadWindowHintsException badHints)
-
-    chReply <- C.newEmptyMVar
-    _ <- C.forkOS $ begin chReply
-    msgC <- C.takeMVar chReply
-    h <- createContext extraHints conf msgC Nothing fmt
-    contextDoAsync h True (return ()) -- First action on render thread: Just make window current
-    return h
-
-createContext :: [WindowHint] -> WindowConf -> C.Chan Message -> Maybe Resource.Window -> ContextFactory c ds GLFWWindow
-createContext extraHints conf msgC share fmt = do
-    w <- makeContext share
-    GLFW.makeContextCurrent Nothing
-    alive <- newIORef True -- This will always be used from render thread so no need to synchronize
-    return ContextHandle
-        { newSharedContext = mainthreadDoWhileContextUncurrent msgC w . createContext extraHints conf msgC (Just w) -- Create context on this thread while parent is uncurrent, then make parent current
-        , contextDoSync = contextDoSyncImpl w msgC
-        , contextDoAsync = contextDoAsyncImpl alive w msgC
-        , contextSwap = contextDoSyncImpl w msgC False -- WTF BOOL PARAM
-            $ GLFW.swapBuffers w
-            -- ^ explicitly do it on the render thread to sync properly, GLFW allows this
-        , contextFrameBufferSize = GLFW.getFramebufferSize w -- Runs on mainthread
-        , contextDelete = case share of
-            Nothing -> do contextDeleteImpl msgC -- This return when render thread is uncurrent and is shutting down (cannot serve any finalizers)
-                          GLFW.destroyWindow w
-            Just parentW  -> mainthreadDoWhileContextUncurrent msgC parentW (writeIORef alive False >> GLFW.destroyWindow w) -- Shared contexts still alive, delete while uncurrent, then make parent win current
-        , contextWindow = GLFWWindow w
-        }
+        throwIO (UnsafeWindowHintsException badHints)
+    withAsyncBound child whileAsync
     where
-        hints = Format.toHints fmt ++ extraHints
-        makeContext :: Maybe Resource.Window -> IO Resource.Window
-        makeContext Nothing = Resource.newContext Nothing hints (Just conf)
-        makeContext (Just s) = Resource.newSharedContext s hints (Just conf)
+        badHints = filter (not . Format.allowedHint) $ wc'hints windowConfig
 
--- | Is the user allowed to use the given WindowHint?
-allowedHint :: WindowHint -> Bool
-allowedHint (WindowHint'sRGBCapable _) = False
-allowedHint (WindowHint'Visible _) = False
-allowedHint (WindowHint'RedBits _) = False
-allowedHint (WindowHint'GreenBits _) = False
-allowedHint (WindowHint'BlueBits _) = False
-allowedHint (WindowHint'AlphaBits _) = False
-allowedHint (WindowHint'DepthBits _) = False
-allowedHint (WindowHint'StencilBits _) = False
-allowedHint (WindowHint'ContextVersionMajor _) = False
-allowedHint (WindowHint'ContextVersionMinor _) = False
-allowedHint (WindowHint'OpenGLForwardCompat _) = False
-allowedHint (WindowHint'OpenGLProfile _) = False
-allowedHint _ = True
+        -- Thing to do while the child-thread runs the given action.
+        whileAsync = case variety of
+            Left _ -> mainloop comm -- The main-thread remains busy throughout the life of the program.
+            Right _ -> wait -- Shared contexts achieve no paralellism.
 
-------------------------------------------------------------------------------
--- OpenGL Context thread
+        -- Method of creating the OpenGL context.
+        withCtx = case variety of
+            Left errorCallback -> Resource.withContext inject errorCallback -- The first context associates an error callback.
+            Right parent -> Resource.withSharedContext inject parent -- Shared contexts are created from a parent context.
 
--- Create and pass back a channel. Enter loop.
-begin :: C.MVar (C.Chan Message) ->  IO ()
-begin chReply = do
-    msgC <- C.newChan
-    C.putMVar chReply msgC
-    loop msgC
+        -- Way to wrap up after the child then after the context is destroyed.
+        afterCtx = case variety of
+            Left _ -> pp "topmost child after context is destroyed" >> writeChan comm Shutdown -- Tell the main-thread to wrap up.
+            Right _ -> pp "child after context is destroyed"
 
--- Handle messages until a stop message is received.
-loop :: C.Chan Message -> IO ()
-loop msgC = do
-    msg <- C.readChan msgC
-    case msg of
-        ReqShutDown reply -> GLFW.makeContextCurrent Nothing >> C.putMVar reply ()
-        ReqExecuteSync action reply -> action >>= C.putMVar reply >> loop msgC
-        ReqExecuteAsync action -> action >> loop msgC
+        -- Thread to which the OpenGL context is bound and where GPipe runs.
+        child = do
+            pp "child says hi"
+            result <- withCtx windowConfig {wc'hints = Format.toHints format ++ wc'hints windowConfig}
+                (\window -> do
+                    GLFW.makeContextCurrent $ Just window
+                    pp "child got a context"
+                    action ContextHandle
+                        { withSharedContext = \_ _ -> undefined -- runFork comm (Right window) (WindowConfig 640 480 "Another Window" Wait Nothing [])
+                        -- FIXME: ^ doesn't compile because we assume (m ~ IO) in this file and we get no (MonadIO m) etc from the signature.
+                        , contextDoSync = (\_ a -> a)
+                        , contextDoAsync = (\_ a -> a >> return ())
+                        , contextSwap = GLFW.swapBuffers window >> processEvents
+                        , contextFrameBufferSize = GLFW.getFramebufferSize window
+                        , contextWindow = Resource.WrappedWindow window
+                        }
+                )
+            afterCtx
+            return result
 
-------------------------------------------------------------------------------
--- Application rpc calls
+        -- Function to run after swapBuffers
+        processEvents = case wc'eventPolicy windowConfig of
+            Poll -> GLFW.pollEvents
+            Wait -> GLFW.waitEvents
 
--- Await sychronous concurrent IO from the OpenGL context thread
-contextDoSyncImpl :: Resource.Window -> C.Chan Message -> Bool -> IO a -> IO a
-contextDoSyncImpl w msgC inwin action = do
-    reply <- C.newEmptyMVar
-    C.writeChan msgC $ ReqExecuteSync (do when inwin (GLFW.makeContextCurrent (Just w))
-                                          action)
-                                      reply
-    GLFW.pollEvents -- Ugly hack, but at least every swapContextBuffers will run this
-    C.takeMVar reply
+        -- Run the context creation action on the main-thread via RPC
+        inject create = do
+            var <- newEmptyMVar
+            writeChan comm $ Execute (pp "somebody is creating" >> create >>= putMVar var >> pp "somebody's creation is complete")
+            result <- takeMVar var
+            return result
 
--- Dispatch asychronous concurrent IO to the OpenGL context thread
-contextDoAsyncImpl :: IORef Bool -> Resource.Window -> C.Chan Message -> Bool -> IO () -> IO ()
-contextDoAsyncImpl alive w msgC inwin action =
-    C.writeChan msgC $ ReqExecuteAsync $ if inwin
-                                            then do -- If needed to be run in this window, then only do it if window still exists
-                                                alive' <- readIORef alive
-                                                when alive' $ do
-                                                        GLFW.makeContextCurrent (Just w)
-                                                        action
-                                            else
-                                                action
-
--- Do action while renderhtread is uncurrent
-mainthreadDoWhileContextUncurrent :: C.Chan Message -> Resource.Window -> IO a -> IO a
-mainthreadDoWhileContextUncurrent msgC w mainAction = do
-    syncMainWait <- C.newEmptyMVar
-    syncRendWait <- C.newEmptyMVar
-    let m = do GLFW.makeContextCurrent Nothing
-               C.putMVar syncMainWait ()
-               C.takeMVar syncRendWait -- Stop other async code from making window current (e.g. finalizers)
-               GLFW.makeContextCurrent (Just w)
-
-    C.writeChan msgC $ ReqExecuteAsync m
-    C.takeMVar syncMainWait -- Wait for render thread to make window uncurrent
-    ret <- mainAction
-    C.putMVar syncRendWait () -- Release render thread
-    return ret
-
--- Request that the OpenGL context thread shut down
-contextDeleteImpl :: C.Chan Message -> IO ()
-contextDeleteImpl msgC = do
-    syncMainWait <- C.newEmptyMVar
-    C.writeChan msgC $ ReqShutDown syncMainWait
-    C.takeMVar syncMainWait
-
--- eof
+-- RPC receiver to be run on the main-thread
+mainloop :: Chan RPC -> Async b -> IO b
+mainloop comm async = do
+    pp "main waits for rpc"
+    rpc <- readChan comm
+    case rpc of
+        Execute action -> pp "main got an rpc" >> action >> mainloop comm async
+        Shutdown -> pp "main waits for last child to exit" >> wait async

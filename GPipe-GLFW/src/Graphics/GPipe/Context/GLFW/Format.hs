@@ -1,16 +1,43 @@
-{-# LANGUAGE PackageImports, GADTs #-}
--- Gpipe format to GLFW window-hint conversion
+{-# LANGUAGE GADTs #-} -- To pattern match on 'ContextFormat' constructors.
+{-# LANGUAGE DeriveAnyClass #-} -- To derive 'Exception' w/o a standalone declaration.
+{-# LANGUAGE FlexibleInstances #-} -- To derive 'Exception [WindowHint]'.
 module Graphics.GPipe.Context.GLFW.Format
-( toHints
+( UnsafeWindowHintsException(..)
+, allowedHint
+, toHints
 ) where
 
-import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
-import qualified Graphics.GPipe.Format as F
+-- stdlib
+import Control.Exception (Exception)
 
-------------------------------------------------------------------------------
--- Top-level
+-- third party
+import qualified Graphics.UI.GLFW as GLFW
+import qualified Graphics.GPipe as GPipe
+import Graphics.UI.GLFW (WindowHint(..))
 
-toHints :: F.ContextFormat c ds -> [GLFW.WindowHint]
+data UnsafeWindowHintsException = UnsafeWindowHintsException [WindowHint]
+    deriving
+    ( Exception
+    , Show
+    )
+instance Exception [WindowHint]
+
+allowedHint :: WindowHint -> Bool
+allowedHint (WindowHint'sRGBCapable _) = False
+allowedHint (WindowHint'Visible _) = False
+allowedHint (WindowHint'RedBits _) = False
+allowedHint (WindowHint'GreenBits _) = False
+allowedHint (WindowHint'BlueBits _) = False
+allowedHint (WindowHint'AlphaBits _) = False
+allowedHint (WindowHint'DepthBits _) = False
+allowedHint (WindowHint'StencilBits _) = False
+allowedHint (WindowHint'ContextVersionMajor _) = False
+allowedHint (WindowHint'ContextVersionMinor _) = False
+allowedHint (WindowHint'OpenGLForwardCompat _) = False
+allowedHint (WindowHint'OpenGLProfile _) = False
+allowedHint _ = True
+
+toHints :: GPipe.ContextFormat c ds -> [GLFW.WindowHint]
 toHints fmt =
     [ GLFW.WindowHint'sRGBCapable sRGB
     , GLFW.WindowHint'Visible visible
@@ -27,9 +54,7 @@ toHints fmt =
     , GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
     ]
     where
-        ((red, green, blue, alpha, sRGB), depth, stencil) = F.contextBits fmt
+        ((red, green, blue, alpha, sRGB), depth, stencil) = GPipe.contextBits fmt
         visible = case fmt of
-            F.ContextFormatNone -> False
+            GPipe.ContextFormatNone -> False
             _ -> True
-
--- eof

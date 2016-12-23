@@ -1,116 +1,107 @@
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveAnyClass #-} -- To derive 'Exception' w/o a standalone declaration.
+{-# LANGUAGE TypeSynonymInstances #-} -- To derive 'Exception String'.
+{-# LANGUAGE FlexibleInstances #-} -- To derive 'Exception String'.
 -- | Bracketed GLFW resource initializers.
 module Graphics.GPipe.Context.GLFW.Resource
-( newContext
-, newSharedContext
-, WindowConf(..)
-, GLFWWindow(..)
-, defaultWindowConf
-, Window
-, ErrorCallback
+( withContext
+, withSharedContext
+, WindowConfig(..)
+, EventPolicy(..)
+, WrappedWindow(..)
 ) where
 
-import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
-import qualified Control.Exception as Exc
-import qualified Data.Maybe as M
-import qualified Text.Printf as P
+-- stdlib
+import Control.Exception
+    ( Exception, throwIO
+    )
+import Control.Monad.Exception
+    ( bracket, bracket_
+    , MonadAsyncException()
+    )
+import Control.Monad.IO.Class (liftIO)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>))
-#endif
+-- third party
+import qualified Graphics.UI.GLFW as GLFW
 
-------------------------------------------------------------------------------
--- Types & Constants
-
--- | A value representing a GLFW OpenGL context window.
-newtype GLFWWindow = GLFWWindow
-  {
-    getGLFWWindow :: GLFW.Window
-  }
-
--- reexports
-type Window = GLFW.Window
-type ErrorCallback = GLFW.ErrorCallback
-
--- a default error callback which ragequits
-defaultOnError :: ErrorCallback
-defaultOnError err msg = fail $ P.printf "%s: %s" (show err) msg
-
--- | Initial window size and title suggestions for GLFW. The window will usually
--- be set to the given size with the given title, unless the window manager
--- overrides this.
-data WindowConf = WindowConf
-    { width :: Int
-    , height :: Int
-    , title :: String
+-- defined here so other internal modules (eg. Input) can get at the unwrapper function
+newtype WrappedWindow = WrappedWindow
+    { rawContext :: GLFW.Window
     }
 
--- | A set of sensible defaults for the 'WindowConf'. Used by
--- 'Graphics.GPipe.Context.GLFW.newContext'.
-defaultWindowConf :: WindowConf
-defaultWindowConf = WindowConf 1024 768 "GLFW Window"
+data EventPolicy
+    = Poll
+    | Wait
+    deriving
+    ( Show
+    )
 
-------------------------------------------------------------------------------
--- Code
+data WindowConfig = WindowConfig
+    { wc'width :: Int
+    , wc'height :: Int
+    , wc'title :: String
+    , wc'eventPolicy :: EventPolicy
+    , wc'monitor :: Maybe GLFW.Monitor
+    , wc'hints :: [GLFW.WindowHint]
+    } deriving
+    ( Show
+    )
 
--- set and unset the GLFW error callback, using a default if none is provided
-withErrorCallback :: Maybe ErrorCallback -> IO a -> IO a
-withErrorCallback customOnError =
-    Exc.bracket_
-        (GLFW.setErrorCallback $ Just onError)
-        (GLFW.setErrorCallback Nothing)
-    where
-        onError :: ErrorCallback
-        onError = M.fromMaybe defaultOnError customOnError
-
--- init and terminate GLFW
-withGLFW :: IO a -> IO a
-withGLFW =
-    Exc.bracket_
-        GLFW.init
-        $ return () -- GLFW.terminate
-        -- to clean up we should call GLFW.terminate, but it currently breaks
-        -- see issue https://github.com/bsl/GLFW-b/issues/54
-
--- reset window hints and apply the given list, afterward reset window hints
-withHints :: [GLFW.WindowHint] -> IO a -> IO a
-withHints hints =
-    Exc.bracket_
-        (GLFW.defaultWindowHints >> mapM_ GLFW.windowHint hints)
-        GLFW.defaultWindowHints
-
--- create a window, as the current context, using any monitor
--- if given a `Window`, create the new window's context from that
-newWindow :: Maybe Window -> Maybe WindowConf -> IO Window
-newWindow share customWindowConf =
-    M.fromMaybe noWindow <$> createWindowHuh
-    where
-        WindowConf {width=w, height=h, title=t} = M.fromMaybe defaultWindowConf customWindowConf
-        createWindowHuh :: IO (Maybe Window)
-        createWindowHuh = do
-            GLFW.makeContextCurrent Nothing
-            win <- GLFW.createWindow w h t Nothing share
-            GLFW.makeContextCurrent win
-            return win
-        noWindow :: Window
-        noWindow = error "Couldn't create a window"
-
-------------------------------------------------------------------------------
--- Top-level
-
--- establish a *new* opengl context
-newContext :: Maybe ErrorCallback -> [GLFW.WindowHint] -> Maybe WindowConf -> IO Window
-newContext ec hints wc
+-- establish and teardown a new opengl context
+withContext :: (MonadAsyncException m) => (IO W -> IO W) -> GLFW.ErrorCallback -> WindowConfig -> (GLFW.Window -> m a) -> m a
+withContext inject ec wc
     = withErrorCallback ec
     . withGLFW
-    . withHints hints
-    $ newWindow Nothing wc
+    . withHints (wc'hints wc)
+    . withWindow inject Nothing wc
 
--- establish a *shared* opengl context
-newSharedContext :: Window -> [GLFW.WindowHint] -> Maybe WindowConf -> IO Window
-newSharedContext ctx hints wc
-    = withHints hints
-    $ newWindow (Just ctx) wc
+-- establish and teardown a shared opengl context
+withSharedContext :: (MonadAsyncException m) => (IO W -> IO W) -> GLFW.Window -> WindowConfig -> (GLFW.Window -> m a) -> m a
+withSharedContext inject ctx wc
+    = withHints (wc'hints wc)
+    . withWindow inject (Just ctx) wc
 
--- eof
+data GLFWCreateWindowException
+    = GLFWCreateWindowException String
+    | GLFWCreateSharedWindowException String
+    deriving
+    ( Exception
+    , Show
+    )
+instance Exception String
+
+-- create a context in glfw, afterward destroy it
+-- call inject with the IO action that creates the window (allows, eg. creating the window on a different thread)
+newtype W = Opaque (Maybe (GLFW.Window)) -- inject gets (IO W) which allows it to either run the IO action or pass it through--nothing more
+-- after calling the inject function, examine the result and throw if no window was created
+-- if given an existing context, the context created by this function is a shared context
+withWindow :: (MonadAsyncException m) => (IO W -> IO W) -> Maybe GLFW.Window -> WindowConfig -> (GLFW.Window -> m a) -> m a
+withWindow inject parent wc = bracket
+        (liftIO $ inject create >>= unwrap)
+        (liftIO . GLFW.destroyWindow)
+    where
+        WindowConfig {wc'width=w, wc'height=h, wc'title=t, wc'monitor=m} = wc
+
+        create = Opaque <$> GLFW.createWindow w h t m parent
+
+        unwrap (Opaque mwin) = case (mwin, parent) of
+                (Just win, _) -> return win
+                (Nothing, Nothing) -> (putStrLn $ "Fail: " ++ show wc) >> (throwIO . GLFWCreateWindowException . show $ wc)
+                (Nothing, Just _) -> (putStrLn $ "Fail: " ++ show wc) >> (throwIO . GLFWCreateSharedWindowException . show $ wc)
+
+-- reset window hints and apply the given list, afterward reset window hints
+withHints :: (MonadAsyncException m) => [GLFW.WindowHint] -> m a -> m a
+withHints hints = bracket_
+    (liftIO $ GLFW.defaultWindowHints >> mapM_ GLFW.windowHint hints)
+    (liftIO GLFW.defaultWindowHints)
+
+-- init and terminate GLFW
+withGLFW :: (MonadAsyncException m) => m a -> m a
+withGLFW = bracket_
+    (liftIO GLFW.init)
+    (liftIO GLFW.terminate)
+
+-- set and unset the GLFW error callback
+withErrorCallback :: (MonadAsyncException m) => GLFW.ErrorCallback -> m a -> m a
+withErrorCallback callback = bracket_
+    (liftIO . GLFW.setErrorCallback $ Just callback)
+    (liftIO $ GLFW.setErrorCallback Nothing)

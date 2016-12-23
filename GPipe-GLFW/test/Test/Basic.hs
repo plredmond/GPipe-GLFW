@@ -10,8 +10,10 @@ test :: Int -> IO ()
 test frameCount = do
     putStrLn "== Basic Test"
     putStrLn "\tRender a scene to a window."
-    runContextT GLFW.newContext (ContextFormatColorDepth RGB8 Depth16) $ do
+    runContextT context (ContextFormatColorDepth RGB8 Depth16) $ do
         resources <- C.initRenderContext [C.xAxis, C.yAxis, C.zAxis, C.plane]
         C.mainloop (frameCount, 0) resources
-
--- eof
+    where
+        context = GLFW.context
+            (\err msg -> putStrLn $ "GLFW Error [" ++ show err ++ "]: " ++ msg)
+            (GLFW.WindowConfig 640 480 "Test" GLFW.Poll Nothing [])
