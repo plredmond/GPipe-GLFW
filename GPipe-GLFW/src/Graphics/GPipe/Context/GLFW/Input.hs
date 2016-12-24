@@ -129,6 +129,9 @@ module Graphics.GPipe.Context.GLFW.Input (
  --     * `glfwSetJoystickCallback`
  --     * `glfwGetTimerValue`
  --     * `glfwGetTimerFrequency`
+
+ -- * Deprecated
+ windowShouldClose,
  ) where
 
 -- stdlib
@@ -266,3 +269,7 @@ setClipboardString = wrapWindowFun GLFW.setClipboardString
 -- | Register or unregister a callback to receive file paths when files are dropped onto the window.
 setDropCallback :: MonadIO m => Maybe ([String] -> IO ()) -> ContextT WrappedWindow os f m ()
 setDropCallback = wrapCallbackSetter GLFW.setDropCallback
+
+
+windowShouldClose :: MonadIO m => ContextT WrappedWindow os f m Bool
+windowShouldClose = withWindow GLFW.windowShouldClose
