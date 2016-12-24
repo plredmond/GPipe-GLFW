@@ -24,7 +24,7 @@ library
                      , exception-transformers >= 0.3 && <0.5
                      , async                  >= 2.1 && <2.3
                      , GLFW-b                 >= 1.4 && <1.5
-                     , GPipe                  >= 2.1 && <2.2
+                     , GPipe                  >= 2.2 && <2.3
   ghc-options:         -Wall -Wno-orphans
   default-language:    Haskell2010
   exposed-modules:     Graphics.GPipe.Context.GLFW
@@ -44,6 +44,7 @@ executable gpipe-glfw-smoketests
   default-language:    Haskell2010
   other-modules:       Test.Common
                        Test.Basic
+                       Test.Input
                        Test.Split
                        Test.Multi
 

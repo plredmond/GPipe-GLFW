@@ -1,6 +1,10 @@
 flags: {}
 packages:
 - '.'
-- ../../gpipe.git/GPipe-Core/
+- location:
+    git: git@github.com:plredmond/GPipe-Core.git
+    commit: 78a7120973d7aaa1783e15298f9e59ad4b666027
+  subdirs: [ GPipe-Core ]
+  extra-dep: true
 extra-deps: []
 resolver: lts-7.8
