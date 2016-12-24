@@ -85,8 +85,8 @@ withWindow inject parent wc = bracket
 
         unwrap (Opaque mwin) = case (mwin, parent) of
                 (Just win, _) -> return win
-                (Nothing, Nothing) -> (putStrLn $ "Fail: " ++ show wc) >> (throwIO . GLFWCreateWindowException . show $ wc)
-                (Nothing, Just _) -> (putStrLn $ "Fail: " ++ show wc) >> (throwIO . GLFWCreateSharedWindowException . show $ wc)
+                (Nothing, Nothing) -> throwIO . GLFWCreateWindowException . show $ wc
+                (Nothing, Just _) -> throwIO . GLFWCreateSharedWindowException . show $ wc
 
 -- reset window hints and apply the given list, afterward reset window hints
 withHints :: (MonadAsyncException m) => [GLFW.WindowHint] -> m a -> m a

@@ -17,11 +17,12 @@ import Control.Concurrent
     ( newEmptyMVar, takeMVar, putMVar
     , Chan, newChan, readChan, writeChan
     , myThreadId
+    , threadDelay
     )
 import Control.Concurrent.Async
     ( Async
-    , withAsyncBound
-    , wait
+    , withAsync, withAsyncBound
+    , wait, poll
     )
 
 -- third party
@@ -29,6 +30,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import Graphics.GPipe.Context (ContextHandle(..), ContextManager)
 
 -- local
+import qualified Graphics.GPipe.Context.GLFW.Input as Input
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import Graphics.GPipe.Context.GLFW.Format (UnsafeWindowHintsException(..))
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
@@ -42,12 +44,15 @@ import Graphics.GPipe.Context.GLFW.Resource (WrappedWindow(), WindowConfig(..), 
 data RPC
     = Execute (IO ())
     | Shutdown
+    | Noop
 
 pp :: String -> IO ()
 pp msg = do
-    t <- myThreadId
+    t <- Input.getTime
+    tid <- myThreadId
     c <- GLFW.getCurrentContext
-    printf "%s [%s]: %s\n" (show t) (show c) msg
+
+    printf "[%s %s, %s]: %s\n" (show t) (show tid) (show c) msg
 
 -- | A context for a `640`x`480` window with the given `title` which polls for events after every frame. Logs errors.
 simpleContext :: String -> ContextManager c ds WrappedWindow IO a
@@ -58,7 +63,7 @@ simpleContext title = context
 -- | A fully configurable Context.
 context :: GLFW.ErrorCallback -> WindowConfig -> ContextManager c ds WrappedWindow IO a
 context errorCallback windowConfig format action = do
-    pp "main says hi"
+    pp "main says hello"
     comm <- newChan
     runFork comm (Left errorCallback) windowConfig format action
 
@@ -93,7 +98,7 @@ runFork comm variety windowConfig format action = do
                     GLFW.makeContextCurrent $ Just window
                     pp "child got a context"
                     action ContextHandle
-                        { withSharedContext = \_ _ -> undefined -- runFork comm (Right window) (WindowConfig 640 480 "Another Window" Wait Nothing [])
+                        { withSharedContext = \_ _ -> error "shared contexts are not implemented" -- runFork comm (Right window) (WindowConfig 640 480 "Another Window" Wait Nothing [])
                         -- FIXME: ^ doesn't compile because we assume (m ~ IO) in this file and we get no (MonadIO m) etc from the signature.
                         , contextDoSync = (\_ a -> a)
                         , contextDoAsync = (\_ a -> a >> return ())
@@ -119,9 +124,15 @@ runFork comm variety windowConfig format action = do
 
 -- RPC receiver to be run on the main-thread
 mainloop :: Chan RPC -> Async b -> IO b
-mainloop comm async = do
-    pp "main waits for rpc"
-    rpc <- readChan comm
+mainloop comm child = do
+    -- Wake up after 1 second w/o rpc
+    rpc <- withAsync (threadDelay (round (1e6 :: Float)) >> writeChan comm Noop)
+        (const $ readChan comm)
     case rpc of
-        Execute action -> pp "main got an rpc" >> action >> mainloop comm async
-        Shutdown -> pp "main waits for last child to exit" >> wait async
+        Execute action -> pp "main got an rpc" >> action >> mainloop comm child
+        Shutdown -> pp "main waits for last child to exit" >> wait child
+        Noop -> do
+            status <- poll child
+            case status of
+                Nothing -> mainloop comm child
+                Just _ -> pp "main saw child has quit and ditto" >> wait child
