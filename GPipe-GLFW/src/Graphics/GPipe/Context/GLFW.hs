@@ -43,7 +43,6 @@ import Graphics.GPipe.Context.GLFW.Resource (WrappedWindow(), WindowConfig(..), 
 
 data RPC
     = Execute (IO ())
-    | Shutdown
     | Noop
 
 pp :: String -> IO ()
@@ -51,8 +50,7 @@ pp msg = do
     t <- Input.getTime
     tid <- myThreadId
     c <- GLFW.getCurrentContext
-
-    printf "[%s %s, %s]: %s\n" (show t) (show tid) (show c) msg
+    printf "%s [%03.3fs, %s]: %s\n" (show tid) (maybe (0/0) id t) (show c) msg
 
 -- | A context for a `640`x`480` window with the given `title` which polls for events after every frame. Logs errors.
 simpleContext :: String -> ContextManager c ds WrappedWindow IO a
@@ -85,19 +83,14 @@ runFork comm variety windowConfig format action = do
             Left errorCallback -> Resource.withContext inject errorCallback -- The first context associates an error callback.
             Right parent -> Resource.withSharedContext inject parent -- Shared contexts are created from a parent context.
 
-        -- Way to wrap up after the child then after the context is destroyed.
-        afterCtx = case variety of
-            Left _ -> pp "topmost child after context is destroyed" >> writeChan comm Shutdown -- Tell the main-thread to wrap up.
-            Right _ -> pp "child after context is destroyed"
-
         -- Thread to which the OpenGL context is bound and where GPipe runs.
         child = do
             pp "child says hi"
             result <- withCtx windowConfig {wc'hints = Format.toHints format ++ wc'hints windowConfig}
                 (\window -> do
                     GLFW.makeContextCurrent $ Just window
-                    pp "child got a context"
-                    action ContextHandle
+                    pp "child received a context"
+                    result <- action ContextHandle
                         { withSharedContext = \_ _ -> error "shared contexts are not implemented" -- runFork comm (Right window) (WindowConfig 640 480 "Another Window" Wait Nothing [])
                         -- FIXME: ^ doesn't compile because we assume (m ~ IO) in this file and we get no (MonadIO m) etc from the signature.
                         , contextDoSync = (\_ a -> a)
@@ -106,8 +99,10 @@ runFork comm variety windowConfig format action = do
                         , contextFrameBufferSize = GLFW.getFramebufferSize window
                         , contextWindow = Resource.WrappedWindow window
                         }
+                    pp "child finished running action"
+                    return result
                 )
-            afterCtx
+            pp "child released the context"
             return result
 
         -- Function to run after swapBuffers
@@ -118,21 +113,19 @@ runFork comm variety windowConfig format action = do
         -- Run the context creation action on the main-thread via RPC
         inject create = do
             var <- newEmptyMVar
-            writeChan comm $ Execute (pp "somebody is creating" >> create >>= putMVar var >> pp "somebody's creation is complete")
-            result <- takeMVar var
-            return result
+            writeChan comm $ Execute (pp "creating context via rpc" >> create >>= putMVar var)
+            takeMVar var
 
 -- RPC receiver to be run on the main-thread
 mainloop :: Chan RPC -> Async b -> IO b
 mainloop comm child = do
     -- Wake up after 1 second w/o rpc
-    rpc <- withAsync (threadDelay (round (1e6 :: Float)) >> writeChan comm Noop)
+    rpc <- withAsync (threadDelay 1000000 >> writeChan comm Noop)
         (const $ readChan comm)
     case rpc of
-        Execute action -> pp "main got an rpc" >> action >> mainloop comm child
-        Shutdown -> pp "main waits for last child to exit" >> wait child
+        Execute action -> pp "main received an rpc" >> action >> mainloop comm child
         Noop -> do
             status <- poll child
             case status of
-                Nothing -> mainloop comm child
-                Just _ -> pp "main saw child has quit and ditto" >> wait child
+                Nothing -> pp "main has sleep apnea" >> mainloop comm child
+                Just _ -> pp "main saw child quit; mainloop is done" >> wait child
