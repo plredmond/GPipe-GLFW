@@ -1,5 +1,7 @@
 import qualified System.Environment as Env
 import qualified Test.Basic as Basic
+import qualified Test.Fixed as Fixed
+import qualified Test.Timed as Timed
 import qualified Test.Input as Input
 import qualified Test.Split as Split
 import qualified Test.Multi as Multi
@@ -13,7 +15,15 @@ main = do
         case val of
             Nothing -> putStrLn "!! If you don't have hardware support, expect a crash."
             _ -> return ()
-    Basic.test (3 * 60)
-    Input.test (3 * 60)
-    Split.test (3 * 60)
-    Multi.test (3 * 60)
+
+    -- single contexts
+    ---- timed
+    Timed.test
+    ---- fixed frame count
+    Basic.test
+    Fixed.test
+    Input.test
+
+    -- shared contexts
+    Split.test
+    Multi.test

@@ -44,6 +44,8 @@ executable gpipe-glfw-smoketests
   default-language:    Haskell2010
   other-modules:       Test.Common
                        Test.Basic
+                       Test.Fixed
+                       Test.Timed
                        Test.Input
                        Test.Split
                        Test.Multi

@@ -3,8 +3,8 @@ module Test.Split where
 import Graphics.GPipe
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 
-test :: Int -> IO ()
-test _ = do
+test :: IO ()
+test = do
     putStrLn "== Split thread test"
     putStrLn "\tUse shared contexts to load resources on one thread and render on another."
     putStrLn "!! Shared contexts aren't implemented, expect a crash."

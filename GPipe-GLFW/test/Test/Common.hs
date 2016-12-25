@@ -1,10 +1,14 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types #-} -- For `forall` in projectLines
+{-# LANGUAGE FlexibleInstances #-} -- For Controller instance on a tuple
 module Test.Common where
 
+import Control.Concurrent (threadDelay)
+import GHC.Float (double2Float)
 import Control.Monad.Exception (MonadException)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Traversable (forM)
 
+import Graphics.GPipe.Context.GLFW.Input (getTime)
 import Graphics.GPipe
 
 xAxis :: [(V3 Float, V3 Float)]
@@ -104,25 +108,43 @@ basicRenderer size (meshesB, projMatB, projShader) = do
         return $ toPrimitiveArray LineStrip meshVA
     projShader $ ShaderEnv (projMatB, 0) (mconcat meshPAs) (Front, ViewPort 0 size, DepthRange 0 1)
 
+-- | Functions to control animation progress and completion. First argument is the result of GLFW.getTime.
+class Controller c where
+    done :: Double -> c -> Bool -- | Are we done yet?
+    done now c = frac now c >= 1.0
+    frac :: Double -> c -> Double -- | What fraction of completion have we reached?
+    next :: Double -> c -> c -- | Advance to the next frame.
+
+-- | Render a fixed set of frames, irrespective of time.
+instance Controller (Int, Int) where
+--  done _ (maxFrame, curFrame) = curFrame >= maxFrame
+    frac _ (maxFrame, curFrame) = fromIntegral curFrame / fromIntegral maxFrame
+    next _ = fmap (+1)
+
+-- | Render for a time period, dropping missed frames.
+instance Controller Double where
+--  done now end = now >= end
+    frac now end = now / end
+    next _ end = end
+
 mainloop
-    ::  (MonadIO m, MonadException m)
-    => (Int, Int)
+    ::  (MonadIO m, MonadException m, Controller t)
+    => t
     -> ( [Buffer os (B3 Float, B3 Float)]
        , Buffer os (Uniform (V4 (B4 Float)))
        , CompiledShader os (ContextFormat RGBFloat Depth) (ShaderEnv os)
        )
     -> ContextT w os (ContextFormat RGBFloat Depth) m ()
-mainloop frame resources@(_, projMatB, _)
-    | done frame = return ()
-    | otherwise = do
-        -- compute a projection matrix & write it to the buffer
-        size <- getContextBuffersSize
-        writeBuffer projMatB 0 [computeProjMat (frac frame) size]
-        -- render the scene and then loop
-        render $ basicRenderer size resources
-        swapContextBuffers
-        mainloop (next frame) resources
-    where
-        done (maxFrame, curFrame) = curFrame > maxFrame
-        frac (maxFrame, curFrame) = fromIntegral curFrame / fromIntegral maxFrame
-        next = fmap (+1)
+mainloop frame resources@(_, projMatB, _) = do
+    t <- liftIO $ getTime
+    case t of
+        Nothing -> (liftIO $ putStrLn "Warning: unable to getTime") >> mainloop frame resources
+        Just now | done now frame -> return ()
+                 | otherwise -> do
+            -- compute a projection matrix & write it to the buffer
+            size <- getContextBuffersSize
+            writeBuffer projMatB 0 [computeProjMat (double2Float $ frac now frame) size]
+            -- render the scene and then loop
+            render $ basicRenderer size resources
+            swapContextBuffers
+            mainloop (next now frame) resources
