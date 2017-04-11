@@ -3,8 +3,12 @@ packages:
 - '.'
 - location:
     git: git@github.com:plredmond/GPipe-Core.git
-    commit: 78a7120973d7aaa1783e15298f9e59ad4b666027
+    commit: bfa8035117b26809a0d542c2f45b94de8f2f5a47
   subdirs: [ GPipe-Core ]
   extra-dep: true
+#- '../../@gpipe/GPipe-Core'
+#- location: '../../@gpipe'
+#  subdirs: [ GPipe-Core ]
+#  extra-dep: true
 extra-deps: []
-resolver: lts-7.8
+resolver: nightly-2016-12-03

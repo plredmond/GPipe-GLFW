@@ -1,5 +1,5 @@
 name:                GPipe-GLFW
-version:             1.3.0
+version:             1.4.0
 cabal-version:       >=1.10
 build-type:          Simple
 author:              Patrick Redmond
@@ -22,6 +22,8 @@ library
   build-depends:       base                   >= 4.7 && <4.10
                      , transformers           >= 0.3 && <0.6
                      , exception-transformers >= 0.3 && <0.5
+                     , stm                    >= 2.4 && <2.5
+                     , containers             >= 0.5 && <0.6
                      , async                  >= 2.1 && <2.3
                      , GLFW-b                 >= 1.4 && <1.5
                      , GPipe                  >= 2.2 && <2.3
@@ -29,26 +31,31 @@ library
   default-language:    Haskell2010
   exposed-modules:     Graphics.GPipe.Context.GLFW
                        Graphics.GPipe.Context.GLFW.Input
-  other-modules:       Graphics.GPipe.Context.GLFW.Resource
+                       Graphics.GPipe.Context.GLFW.Wrapped
+  other-modules:       Graphics.GPipe.Context.GLFW.Calls
+                       Graphics.GPipe.Context.GLFW.Resource
+                       Graphics.GPipe.Context.GLFW.Wrappers
                        Graphics.GPipe.Context.GLFW.Format
+                       Graphics.GPipe.Context.GLFW.Handler
+                       Graphics.GPipe.Context.GLFW.RPC
 
-executable gpipe-glfw-smoketests
-  hs-source-dirs:      test
-  main-is:             Spec.hs
-  build-depends:       base
-                     , GPipe
-                     , GPipe-GLFW
-                     , transformers
-                     , exception-transformers
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  default-language:    Haskell2010
-  other-modules:       Test.Common
-                       Test.Basic
-                       Test.Fixed
-                       Test.Timed
-                       Test.Input
-                       Test.Split
-                       Test.Multi
+--executable gpipe-glfw-smoketests
+--  hs-source-dirs:      test
+--  main-is:             Spec.hs
+--  build-depends:       base
+--                     , GPipe
+--                     , GPipe-GLFW
+--                     , transformers
+--                     , exception-transformers
+--  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+--  default-language:    Haskell2010
+--  other-modules:       Test.Common
+--                       Test.Basic
+--                       Test.Fixed
+--                       Test.Timed
+--                       Test.Input
+--                       Test.Split
+--                       Test.Multi
 
 source-repository head
   type:     git
@@ -59,4 +66,4 @@ source-repository this
   type:     git
   location: https://github.com/plredmond/GPipe-GLFW.git
   subdir:   GPipe-GLFW
-  tag:      v1.3.0
+  tag:      v1.4.0

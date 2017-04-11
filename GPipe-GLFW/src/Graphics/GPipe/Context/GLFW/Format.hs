@@ -1,15 +1,11 @@
 {-# LANGUAGE GADTs #-} -- To pattern match on 'ContextFormat' constructors.
 {-# LANGUAGE DeriveAnyClass #-} -- To derive 'Exception' w/o a standalone declaration.
 {-# LANGUAGE FlexibleInstances #-} -- To derive 'Exception [WindowHint]'.
-module Graphics.GPipe.Context.GLFW.Format
-( UnsafeWindowHintsException(..)
-, allowedHint
-, toHints
-) where
+-- | Internal module for generating and assessing GLFW hint lists
+module Graphics.GPipe.Context.GLFW.Format where
 
 -- stdlib
 import Control.Exception (Exception)
-
 -- third party
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Graphics.GPipe as GPipe
@@ -37,24 +33,22 @@ allowedHint (WindowHint'OpenGLForwardCompat _) = False
 allowedHint (WindowHint'OpenGLProfile _) = False
 allowedHint _ = True
 
-toHints :: GPipe.ContextFormat c ds -> [GLFW.WindowHint]
-toHints fmt =
+unconditionalHints :: [GLFW.WindowHint]
+unconditionalHints =
+    [ GLFW.WindowHint'ContextVersionMajor 3
+    , GLFW.WindowHint'ContextVersionMinor 3
+    , GLFW.WindowHint'OpenGLForwardCompat True
+    , GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
+    ]
+
+bitsToHints :: Maybe GPipe.WindowBits -> [GLFW.WindowHint]
+bitsToHints Nothing = [GLFW.WindowHint'Visible False]
+bitsToHints (Just ((red, green, blue, alpha, sRGB), depth, stencil)) =
     [ GLFW.WindowHint'sRGBCapable sRGB
-    , GLFW.WindowHint'Visible visible
     , GLFW.WindowHint'RedBits red
     , GLFW.WindowHint'GreenBits green
     , GLFW.WindowHint'BlueBits blue
     , GLFW.WindowHint'AlphaBits alpha
     , GLFW.WindowHint'DepthBits depth
     , GLFW.WindowHint'StencilBits stencil
-
-    , GLFW.WindowHint'ContextVersionMajor 3
-    , GLFW.WindowHint'ContextVersionMinor 3
-    , GLFW.WindowHint'OpenGLForwardCompat True
-    , GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
     ]
-    where
-        ((red, green, blue, alpha, sRGB), depth, stencil) = GPipe.contextBits fmt
-        visible = case fmt of
-            GPipe.ContextFormatNone -> False
-            _ -> True

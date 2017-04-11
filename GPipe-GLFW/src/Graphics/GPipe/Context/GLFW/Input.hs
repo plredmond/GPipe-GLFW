@@ -1,19 +1,19 @@
 -- | This module exposes much of the functionality that GLFW the __Input guide__ documents:
 -- <http://www.glfw.org/docs/latest/input_guide.html>.
--- Actions are in the GPipe 'ContextT' monad when a window handle is required,
--- otherwise they are bare IO actions.
--- It is recommended to read about GLFW input handling as it pertains to your domain,
--- especially the __Event processing__ section:
--- <http://www.glfw.org/docs/latest/input_guide.html#events>.
+-- Other functionality can be found in the "Graphics.GPipe.Context.GLFW.Wrapped" module.
+--
+-- Actions are in the GPipe 'GPipe.ContextT' monad when a window handle is required,
+-- otherwise they are bare reexported IO actions which can be lifted into the 'GPipe.ContextT' monad.
 
 module Graphics.GPipe.Context.GLFW.Input (
 
  -- * Event processing
  -- | Learn more: http://www.glfw.org/docs/latest/input_guide.html#events
- GLFW.pollEvents,
- -- | Process received events and return; for applications which continually render.
- GLFW.waitEvents,
- -- | Sleep until an event is received; for applications which update in response to user input.
+ --
+ -- Some functionality is managed by the 'mainloop' and 'mainstep' functions provided by "Graphics.GPipe.Context.GLFW".
+ --
+ --     * `glfwPollEvents`
+ --     * `glfwWaitEvents`
  GLFW.postEmptyEvent,
  -- | Force wake from 'waitEvents' with a dummy event.
 
@@ -121,7 +121,7 @@ module Graphics.GPipe.Context.GLFW.Input (
  JoystickButtonState(..),
 
  -- * Not supported
- -- | Some GLFW functionality isn't currently exposed by "GLFW-b".
+ -- | Some GLFW functionality isn't currently exposed by "Graphics.UI.GLFW".
  --
  --     * `glfwWaitEventsTimeout`
  --     * `glfwSetCharModsCallback`
@@ -129,15 +129,11 @@ module Graphics.GPipe.Context.GLFW.Input (
  --     * `glfwSetJoystickCallback`
  --     * `glfwGetTimerValue`
  --     * `glfwGetTimerFrequency`
-
- -- * Deprecated
- windowShouldClose,
  ) where
 
 -- stdlib
 import Control.Monad.IO.Class (MonadIO)
-import Graphics.GPipe.Context (ContextT, withContextWindow)
-
+import qualified Graphics.GPipe.Context as GPipe (ContextT, Window())
 -- third party
 import qualified Graphics.UI.GLFW as GLFW
 import Graphics.UI.GLFW (
@@ -155,100 +151,84 @@ import Graphics.UI.GLFW (
  Joystick(..),
  JoystickButtonState(..),
  )
-
 -- local
-import Graphics.GPipe.Context.GLFW.Resource (WrappedWindow(..))
+import Graphics.GPipe.Context.GLFW.Handler (Handle(..))
+import Graphics.GPipe.Context.GLFW.Wrappers
+import qualified Graphics.GPipe.Context.GLFW.Calls as Call
 
-
-{- Util -}
-
--- | Convenience function to access the unwrapped GLFW window.
-withWindow :: MonadIO m => (GLFW.Window -> IO a) -> ContextT WrappedWindow os f m a
-withWindow f = withContextWindow $ f . rawContext
-
--- | Convenience function to quickly wrap two argument functions taking window and something else.
--- Wrapped functions don't take window.
-wrapWindowFun :: MonadIO m => (GLFW.Window -> a -> IO b) -> a -> ContextT WrappedWindow os f m b
-wrapWindowFun f x = withWindow $ \w -> f w x
-
--- | Convenience function to quickly wrap callback setters taking window and passing window to the callback.
--- Wrapped functions don't take window.
--- Callbacks don't receive window /it is eaten by `const`/.
-wrapCallbackSetter :: (MonadIO m, Functor g) => (GLFW.Window -> g (GLFW.Window -> b) -> IO a) -> g b -> ContextT WrappedWindow os f m a
-wrapCallbackSetter setter cb = withWindow $ \w -> setter w (const <$> cb)
 
 {- Keyboard -}
 
 -- | Register or unregister a callback to receive 'KeyState' changes to any 'Key'.
-setKeyCallback :: MonadIO m => Maybe (Key -> Int -> KeyState -> ModifierKeys -> IO ()) -> ContextT WrappedWindow os f m ()
-setKeyCallback = wrapCallbackSetter GLFW.setKeyCallback
+setKeyCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (Key -> Int -> KeyState -> ModifierKeys -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setKeyCallback = wrapCallbackSetter Call.setKeyCallback
 
 -- | Poll for the 'KeyState' of a 'Key'.
-getKey :: MonadIO m => Key -> ContextT WrappedWindow os f m KeyState
-getKey = wrapWindowFun GLFW.getKey
+getKey :: MonadIO m => GPipe.Window os c ds -> Key -> GPipe.ContextT Handle os m (Maybe KeyState)
+getKey = wrapWindowFun Call.getKey
 
 -- | Polling a 'Key' for 'KeyState' may sometimes miss state transitions.
 -- If you use cannot use a callback to receive 'KeyState' changes,
 -- use 'getKey' in combination with GLFW's sticky-keys feature:
 -- <http://www.glfw.org/docs/latest/input_guide.html#input_key>.
-setStickyKeysInputMode :: MonadIO m => StickyKeysInputMode -> ContextT WrappedWindow os f m ()
-setStickyKeysInputMode = wrapWindowFun GLFW.setStickyKeysInputMode
+setStickyKeysInputMode :: MonadIO m => GPipe.Window os c ds -> StickyKeysInputMode -> GPipe.ContextT Handle os m (Maybe ())
+setStickyKeysInputMode = wrapWindowFun Call.setStickyKeysInputMode
 
-getStickyKeysInputMode :: MonadIO m => ContextT WrappedWindow os f m StickyKeysInputMode
-getStickyKeysInputMode = withWindow GLFW.getStickyKeysInputMode
+getStickyKeysInputMode :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe StickyKeysInputMode)
+getStickyKeysInputMode = withWindow Call.getStickyKeysInputMode
 
 -- | Register or unregister a callback to receive character input obeying keyboard layouts and modifier effects.
-setCharCallback :: MonadIO m => Maybe (Char -> IO ()) -> ContextT WrappedWindow os f m ()
-setCharCallback = wrapCallbackSetter GLFW.setCharCallback
+setCharCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (Char -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setCharCallback = wrapCallbackSetter Call.setCharCallback
 
 {- Mouse -}
 
 -- | Register or unregister a callback to receive mouse location changes.
 -- Callback receives `x` and `y` position measured in screen-coordinates relative to the top left of the GLFW window.
-setCursorPosCallback :: MonadIO m => Maybe (Double -> Double -> IO ()) -> ContextT WrappedWindow os f m ()
-setCursorPosCallback = wrapCallbackSetter GLFW.setCursorPosCallback
+setCursorPosCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (Double -> Double -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setCursorPosCallback = wrapCallbackSetter Call.setCursorPosCallback
 
 -- | Poll for the location of the mouse.
-getCursorPos :: MonadIO m => ContextT WrappedWindow os f m (Double, Double)
-getCursorPos = withWindow GLFW.getCursorPos
+getCursorPos :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe (Double, Double))
+getCursorPos = withWindow Call.getCursorPos
 
 -- | GLFW supports setting cursor mode to support mouselook and other advanced uses of the mouse:
 -- <http://www.glfw.org/docs/latest/input_guide.html#cursor_mode>.
-setCursorInputMode :: MonadIO m => CursorInputMode -> ContextT WrappedWindow os f m ()
-setCursorInputMode = wrapWindowFun GLFW.setCursorInputMode
+setCursorInputMode :: MonadIO m => GPipe.Window os c ds -> CursorInputMode -> GPipe.ContextT Handle os m (Maybe ())
+setCursorInputMode = wrapWindowFun Call.setCursorInputMode
 
-getCursorInputMode :: MonadIO m => ContextT WrappedWindow os f m CursorInputMode
-getCursorInputMode = withWindow GLFW.getCursorInputMode
+getCursorInputMode :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe CursorInputMode)
+getCursorInputMode = withWindow Call.getCursorInputMode
 
 -- | Set the cursor to be displayed over the window while 'CursorInputMode' is `Normal`.
-setCursor :: MonadIO m => Cursor -> ContextT WrappedWindow os f m ()
-setCursor = wrapWindowFun GLFW.setCursor
+setCursor :: MonadIO m => GPipe.Window os c ds -> Cursor -> GPipe.ContextT Handle os m (Maybe ())
+setCursor = wrapWindowFun Call.setCursor
 
 -- | Register or unregister a callback to receive 'CursorState' changes when the cursor enters or exits the window.
-setCursorEnterCallback :: MonadIO m => Maybe (CursorState -> IO ()) -> ContextT WrappedWindow os f m ()
-setCursorEnterCallback = wrapCallbackSetter GLFW.setCursorEnterCallback
+setCursorEnterCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (CursorState -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setCursorEnterCallback = wrapCallbackSetter Call.setCursorEnterCallback
 
 -- | Register or unregister a callback to receive 'MouseButtonState' changes to a 'MouseButton'.
-setMouseButtonCallback :: MonadIO m => Maybe (MouseButton -> MouseButtonState -> ModifierKeys -> IO ()) -> ContextT WrappedWindow os f m ()
-setMouseButtonCallback = wrapCallbackSetter GLFW.setMouseButtonCallback
+setMouseButtonCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (MouseButton -> MouseButtonState -> ModifierKeys -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setMouseButtonCallback = wrapCallbackSetter Call.setMouseButtonCallback
 
 -- | Poll for the 'MouseButtonState' of a 'MouseButton'.
-getMouseButton :: MonadIO m => MouseButton -> ContextT WrappedWindow os f m MouseButtonState
-getMouseButton = wrapWindowFun GLFW.getMouseButton
+getMouseButton :: MonadIO m => GPipe.Window os c ds -> MouseButton -> GPipe.ContextT Handle os m (Maybe MouseButtonState)
+getMouseButton = wrapWindowFun Call.getMouseButton
 
 -- | Polling a 'MouseButton' for 'MouseButtonState' may sometimes miss state transitions.
 -- If you use cannot use a callback to receive 'MouseButtonState' changes,
 -- use 'getMouseButton' in combination with GLFW's sticky-mouse-buttons feature:
 -- <http://www.glfw.org/docs/latest/input_guide.html#input_mouse_button>.
-setStickyMouseButtonsInputMode :: MonadIO m => StickyMouseButtonsInputMode -> ContextT WrappedWindow os f m ()
-setStickyMouseButtonsInputMode = wrapWindowFun GLFW.setStickyMouseButtonsInputMode
+setStickyMouseButtonsInputMode :: MonadIO m => GPipe.Window os c ds -> StickyMouseButtonsInputMode -> GPipe.ContextT Handle os m (Maybe ())
+setStickyMouseButtonsInputMode = wrapWindowFun Call.setStickyMouseButtonsInputMode
 
-getStickyMouseButtonsInputMode :: MonadIO m => ContextT WrappedWindow os f m StickyMouseButtonsInputMode
-getStickyMouseButtonsInputMode = withWindow GLFW.getStickyMouseButtonsInputMode
+getStickyMouseButtonsInputMode :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe StickyMouseButtonsInputMode)
+getStickyMouseButtonsInputMode = withWindow Call.getStickyMouseButtonsInputMode
 
 -- | Register or unregister a callback to receive scroll offset changes.
-setScrollCallback :: MonadIO m => Maybe (Double -> Double -> IO ()) -> ContextT WrappedWindow os f m ()
-setScrollCallback = wrapCallbackSetter GLFW.setScrollCallback
+setScrollCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (Double -> Double -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setScrollCallback = wrapCallbackSetter Call.setScrollCallback
 
 {- Joystick -}
 
@@ -257,19 +237,15 @@ setScrollCallback = wrapCallbackSetter GLFW.setScrollCallback
 {- Clipboard -}
 
 -- | Poll the system clipboard for a UTF-8 encoded string, if one can be extracted.
-getClipboardString :: MonadIO m => ContextT WrappedWindow os f m (Maybe String)
-getClipboardString = withWindow GLFW.getClipboardString
+getClipboardString :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe (Maybe String))
+getClipboardString = withWindow Call.getClipboardString
 
 -- | Store a UTF-8 encoded string in the system clipboard.
-setClipboardString :: MonadIO m => String -> ContextT WrappedWindow os f m ()
-setClipboardString = wrapWindowFun GLFW.setClipboardString
+setClipboardString :: MonadIO m => GPipe.Window os c ds -> String -> GPipe.ContextT Handle os m (Maybe ())
+setClipboardString = wrapWindowFun Call.setClipboardString
 
 {- Pathdrop -}
 
 -- | Register or unregister a callback to receive file paths when files are dropped onto the window.
-setDropCallback :: MonadIO m => Maybe ([String] -> IO ()) -> ContextT WrappedWindow os f m ()
-setDropCallback = wrapCallbackSetter GLFW.setDropCallback
-
-
-windowShouldClose :: MonadIO m => ContextT WrappedWindow os f m Bool
-windowShouldClose = withWindow GLFW.windowShouldClose
+setDropCallback :: MonadIO m => GPipe.Window os c ds -> Maybe ([String] -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setDropCallback = wrapCallbackSetter Call.setDropCallback
