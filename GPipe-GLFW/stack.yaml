@@ -1,14 +1,11 @@
 flags: {}
 packages:
 - '.'
-- location:
-    git: git@github.com:plredmond/GPipe-Core.git
-    commit: bfa8035117b26809a0d542c2f45b94de8f2f5a47
+- location: '../../@gpipe'
+#   git: git@github.com:plredmond/GPipe-Core.git
+#   commit: 
   subdirs: [ GPipe-Core ]
   extra-dep: true
-#- '../../@gpipe/GPipe-Core'
-#- location: '../../@gpipe'
-#  subdirs: [ GPipe-Core ]
-#  extra-dep: true
+
 extra-deps: []
 resolver: nightly-2016-12-03

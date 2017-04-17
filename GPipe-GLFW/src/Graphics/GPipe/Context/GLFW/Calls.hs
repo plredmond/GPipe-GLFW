@@ -11,6 +11,7 @@ import qualified Control.Concurrent as Conc
 import qualified Graphics.UI.GLFW as GLFW
 
 -- TODO: change from using explicit OnMain functions to passing a handle which implements the appropriate class (effect or fetch result)
+-- TODO: maybe an OnMain monad would be good to reduce the number of RPCS? Not really necessary, since they can already be easily sequenced with IO
 
 -- |
 -- * 2x This function may be called from any thread.
@@ -50,8 +51,11 @@ setErrorCallback onMain callbackHuh = do
 -- * There are many caveats: http://www.glfw.org/docs/latest/group__window.html#ga5c336fddf2cbb5b92f65f10fb6043344
 -- * ~~This function must not be called from a callback.~~
 -- * This function must only be called from the main thread.
-createWindow :: OnMain (Maybe GLFW.Window) -> Int -> Int -> String -> Maybe GLFW.Monitor -> Maybe GLFW.Window -> IO (Maybe GLFW.Window)
-createWindow onMain width height title monitor parent = onMain $ GLFW.createWindow width height title monitor parent
+createWindow :: OnMain (Maybe GLFW.Window) -> Int -> Int -> String -> Maybe GLFW.Monitor -> [GLFW.WindowHint] -> Maybe GLFW.Window -> IO (Maybe GLFW.Window)
+createWindow onMain width height title monitor hints parent = onMain $ do
+    GLFW.defaultWindowHints -- This function must only be called from the main thread.
+    mapM_ GLFW.windowHint hints -- This function must only be called from the main thread.
+    GLFW.createWindow width height title monitor parent
 
 -- |
 -- * If the context of the specified window is current on the main thread, it is detached before being destroyed.

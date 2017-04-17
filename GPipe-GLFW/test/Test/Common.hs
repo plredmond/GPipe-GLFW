@@ -39,10 +39,11 @@ data ShaderEnv os = ShaderEnv
     }
 
 initBuffers
-    :: MonadIO m
+    :: (MonadIO m, ContextHandler w)
     => [[(V3 Float, V3 Float)]]
-    -> ContextT w os f m ([Buffer os (B3 Float, B3 Float)], Buffer os (Uniform (V4 (B4 Float))))
-initBuffers rawMeshes = do
+    -> Window os c ds
+    -> ContextT w os m ([Buffer os (B3 Float, B3 Float)], Buffer os (Uniform (V4 (B4 Float))))
+initBuffers rawMeshes win = do
     -- make mesh buffers
     meshesB <- forM rawMeshes $ \pts -> do
         buf <- newBuffer $ length pts
@@ -52,7 +53,7 @@ initBuffers rawMeshes = do
     projMatB <- newBuffer 1
     return (meshesB, projMatB)
 
-projectLines :: forall os f. Shader os f (ShaderEnv os) (FragmentStream (V3 FFloat, FFloat))
+projectLines :: forall os f. Shader os  (ShaderEnv os) (FragmentStream (V3 FFloat, FFloat))
 projectLines = do
     projMat <- getUniform extractProjU
     linePS <- toPrimitiveStream extractLinePA
@@ -68,14 +69,15 @@ projectLines = do
 initRenderContext
     :: (MonadIO m, MonadException m)
     => [[(V3 Float, V3 Float)]]
-    -> ContextT w os (ContextFormat RGBFloat Depth) m
+    -> Window os c ds
+    -> ContextT w os m
         ( [Buffer os (B3 Float, B3 Float)]
         , Buffer os (Uniform (V4 (B4 Float)))
-        , CompiledShader os (ContextFormat RGBFloat Depth) (ShaderEnv os)
+        , CompiledShader os (ShaderEnv os)
         )
-initRenderContext rawMeshes = do
-    projShader <- compileShader (projectLines >>= drawContextColorDepth (const (ContextColorOption NoBlending $ pure True, DepthOption Less True)))
-    (meshesB, projMatB) <- initBuffers rawMeshes
+initRenderContext rawMeshes win = do
+    projShader <- compileShader (projectLines >>= drawWindowColorDepth (const (win, ContextColorOption NoBlending $ pure True, DepthOption Less True)))
+    (meshesB, projMatB) <- initBuffers rawMeshes win
     return (meshesB, projMatB, projShader)
 
 computeProjMat :: Float -> V2 Int -> M44 Float
@@ -97,9 +99,9 @@ basicRenderer
     :: V2 Int
     -> ( [Buffer os (B3 Float, B3 Float)]
        , Buffer os (Uniform (V4 (B4 Float)))
-       , CompiledShader os (ContextFormat RGBFloat Depth) (ShaderEnv os)
+       , CompiledShader os (ShaderEnv os)
        )
-    -> Render os (ContextFormat RGBFloat Depth) ()
+    -> Render os ()
 basicRenderer size (meshesB, projMatB, projShader) = do
     clearContextColor 0.2 -- grey
     clearContextDepth 1 -- far plane
@@ -132,9 +134,9 @@ mainloop
     => t
     -> ( [Buffer os (B3 Float, B3 Float)]
        , Buffer os (Uniform (V4 (B4 Float)))
-       , CompiledShader os (ContextFormat RGBFloat Depth) (ShaderEnv os)
+       , CompiledShader os (ShaderEnv os)
        )
-    -> ContextT w os (ContextFormat RGBFloat Depth) m ()
+    -> ContextT w os m ()
 mainloop frame resources@(_, projMatB, _) = do
     t <- liftIO $ getTime
     case t of

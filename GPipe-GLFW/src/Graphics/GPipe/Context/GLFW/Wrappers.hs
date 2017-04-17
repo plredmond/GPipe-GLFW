@@ -7,21 +7,21 @@ import Control.Monad.IO.Class (MonadIO)
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Graphics.GPipe.Context as GPipe (ContextT, withContextWindow, Window())
 -- local
-import qualified Graphics.GPipe.Context.GLFW.Handler as Handler (Handle(..), Window(..))
+import qualified Graphics.GPipe.Context.GLFW.Handler as Handler (Handle(..), Context(..), withContextWindow, Window(..))
 import qualified Graphics.GPipe.Context.GLFW.Calls as Call
 import qualified Graphics.GPipe.Context.GLFW.RPC as RPC
 
--- | Convenience function to look up and unwrap the GLFW window.
+-- | Convenience funcion to run the action with the context if GPipe can locate it and it is still open.
 withWindowSimple :: MonadIO m => (GLFW.Window -> IO a) -> GPipe.Window os c ds -> GPipe.ContextT Handler.Handle os m (Maybe a)
-withWindowSimple fun wid = GPipe.withContextWindow wid go
+withWindowSimple fun wid = Handler.withContextWindow "withWindowNoRPC" wid go
     where
-        go ctx = fun $ Handler.windowRaw ctx
+        go _handle = fun . Handler.contextRaw
 
 -- | Convenience function to look up and unwrap the GLFW window and route the GLFW function through RPC.
 withWindow :: MonadIO m => (Call.OnMain a -> GLFW.Window -> IO a) -> GPipe.Window os c ds -> GPipe.ContextT Handler.Handle os m (Maybe a)
-withWindow fun wid = GPipe.withContextWindow wid go
+withWindow fun wid = Handler.withContextWindow "withWindowRPC" wid go
     where
-        go ctx = fun (RPC.fetchResult . Handler.handleComm . Handler.windowHandler $ ctx) (Handler.windowRaw ctx)
+        go handle = fun (RPC.fetchResult . Handler.handleComm $ handle) . Handler.contextRaw
 
 -- | Convenience function to wrap two-argument functions taking window and something else.
 wrapWindowFun :: MonadIO m => (Call.OnMain b -> GLFW.Window -> a -> IO b) -> GPipe.Window os c ds -> a -> GPipe.ContextT Handler.Handle os m (Maybe b)
