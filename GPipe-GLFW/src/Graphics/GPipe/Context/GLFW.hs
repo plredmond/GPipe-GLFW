@@ -13,7 +13,6 @@ Window,
 mainloop,
 mainstep,
 -- ** Configuration
-HandleConfig(..),
 defaultHandleConfig,
 WindowConfig(..),
 defaultWindowConfig,

@@ -27,7 +27,7 @@ import Control.Concurrent
     )
 -- thirdparty
 import qualified Graphics.GPipe.Context as GPipe (ContextHandler(..), Window(), ContextT(), withContextWindow)
-import qualified Graphics.UI.GLFW as GLFW (Window)
+import qualified Graphics.UI.GLFW as GLFW (Window, ErrorCallback)
 -- local
 import qualified Graphics.GPipe.Context.GLFW.Calls as Call
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
@@ -84,8 +84,18 @@ effectMain handle = RPC.sendEffect (handleComm handle)
 onMain :: Handle -> Call.OnMain a
 onMain handle = RPC.fetchResult (handleComm handle)
 
+-- | Default configuration which prints any errors that GLFW emits.
+defaultHandleConfig :: GPipe.ContextHandlerParameters Handle
+defaultHandleConfig = HandleConfig errorHandler
+    where
+        -- TODO: swap printf for logger
+        -- TODO: accumulate channel errors in a list or channel in handle until they can be processed somewhere
+        errorHandler err desc = printf "%s: %s\n" (show err) desc
+
 instance GPipe.ContextHandler Handle where
-    type ContextHandlerParameters Handle = Resource.HandleConfig
+    data ContextHandlerParameters Handle = HandleConfig
+        { configErrorCallback :: GLFW.ErrorCallback
+        }
     type ContextWindow Handle = Window
     type WindowParameters Handle = Resource.WindowConfig
 
@@ -107,9 +117,10 @@ instance GPipe.ContextHandler Handle where
         window <- withAnyContext handle $ \parent -> do
             windowHuh <- Call.createWindow (onMain handle) width height title monitor hints (contextRaw <$> parent)
             Call.debug $ printf "contextCreate made %s -> parent %s" (show windowHuh) (show $ contextRaw <$> parent)
-            case windowHuh of
-                Just w -> return w
-                Nothing -> throwIO . CreateSharedWindowException . show $ config
+            case (windowHuh, parent) of
+                (Just w, _) -> return w
+                (Nothing, Just _) -> throwIO . CreateSharedWindowException . show $ config
+                (Nothing, Nothing) -> throwIO . CreateWindowException . show $ config
         -- set up context
         forM_ intervalHuh $ \interval -> do
             Call.debug "some context shuffling for swapInterval {"
@@ -217,7 +228,7 @@ instance GPipe.ContextHandler Handle where
         -- wrap up handle
         return $ Handle tid comm ctxs
         where
-            Resource.HandleConfig errorHandler = config
+            HandleConfig errorHandler = config
 
     contextHandlerDelete handle = do
         Call.debug "contextHandlerDelete"
@@ -256,7 +267,7 @@ mainstep (Window (mmContext, handle)) eventPolicy = do
     case eventPolicy of
         Poll -> Call.pollEvents id
         Wait -> withAsync (RPC.awaitActions (handleComm handle) >> Call.postEmptyEvent)
-                            (const $ Call.waitEvents id)
+                    (const $ Call.waitEvents id)
     RPC.processActions $ handleComm handle
 
 -- | Process GLFW and GPipe events according to the given 'EventPolicy' in a
