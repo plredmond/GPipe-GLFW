@@ -1,30 +1,19 @@
 # GPipe-GLFW
 
 **GPipe-GLFW** is a utility library to enable the use of [GLFW](http://www.glfw.org/)
-as the OpenGL window and context handler for GPipe.
-[What is GPipe?](#what-is-gpipe).
+as the OpenGL window and context handler for [GPipe](#what-is-gpipe).
+
+See examples in the [Smoketests](Smoketests) directory and learn [GPipe](#what-is-gpipe).
 
 Find GPipe-GLFW on
 [github](https://github.com/plredmond/GPipe-GLFW),
 [hackage](https://hackage.haskell.org/package/GPipe-GLFW), and
 [stackage](https://www.stackage.org/package/GPipe-GLFW).
 
-## Build instructions
-
-* Cabal
-
-  * With Nix: [Add this project to `~/.nixpkgs/config.nix`](https://nixos.org/nixpkgs/manual/#how-to-build-projects-that-depend-on-each-other) and then use either `nix-shell` or `nix-build`.
-    * `nix-shell "<nixpkgs>" -A haskellPackages.GPipe-Test.env` will open a shell where `cabal build` and any other Cabal commands should work.
-    * `nix-build "<nixpkgs>" -A haskellPackages.GPipe-Test`
-  * Without Nix: Install the system package dependencies listed in `stack.yaml` using your system's package manager. It is recommended that you use sandboxes to allow Cabal's resolver to pick Haskell dependencies.
-
-* Stack
-
-  * With Nix: Use `stack build` and the [system package dependencies listed in `stack.yaml` will be fetched for a build shell](https://github.com/commercialhaskell/stack/blob/master/doc/nix_integration.md).
-  * Without Nix: Install the system package dependencies listed in `stack.yaml` using your system's package manager. Then build with `stack build`.
-
 ## Changes
 
+* 1.4.0
+    * Rewrite for new window handling interface. Separate smoke tests to own package.
 * 1.3.0
     * Overhaul `Graphics.GPipe.Context.GLFW.Input` to expose most of the functionality in [GLFW Input guide](http://www.glfw.org/docs/latest/input_guide.html).
 * 1.2.3

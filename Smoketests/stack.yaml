@@ -1,6 +1,9 @@
 flags: {}
 packages:
 - '.'
+- location: '..'
+  subdirs: [ GPipe-GLFW ]
+  extra-dep: true
 - location: # '../../@gpipe'
     git: git@github.com:plredmond/GPipe-Core.git
     commit: 048f9a35556dca322973bddb35a550e010cea261

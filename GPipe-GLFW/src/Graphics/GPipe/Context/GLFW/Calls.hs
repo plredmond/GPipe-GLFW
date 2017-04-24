@@ -43,9 +43,7 @@ terminate onMain = onMain GLFW.terminate
 -- * This function may be called before glfwInit.
 -- * This function must only be called from the main thread.
 setErrorCallback :: EffectMain -> Maybe GLFW.ErrorCallback -> IO ()
-setErrorCallback onMain callbackHuh = do
-    (\cb -> cb GLFW.Error'NotInitialized "This is just a test message which can be ignored") `mapM_` callbackHuh
-    onMain $ GLFW.setErrorCallback callbackHuh
+setErrorCallback onMain callbackHuh = onMain $ GLFW.setErrorCallback callbackHuh
 
 -- | 
 -- * There are many caveats: http://www.glfw.org/docs/latest/group__window.html#ga5c336fddf2cbb5b92f65f10fb6043344

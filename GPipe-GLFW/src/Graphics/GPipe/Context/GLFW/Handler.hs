@@ -119,8 +119,8 @@ instance GPipe.ContextHandler Handle where
             Call.debug $ printf "contextCreate made %s -> parent %s" (show windowHuh) (show $ contextRaw <$> parent)
             case (windowHuh, parent) of
                 (Just w, _) -> return w
-                (Nothing, Just _) -> throwIO . CreateSharedWindowException . show $ config
-                (Nothing, Nothing) -> throwIO . CreateWindowException . show $ config
+                (Nothing, Just _) -> throwIO . CreateSharedWindowException . show $ config {Resource.configHints = hints}
+                (Nothing, Nothing) -> throwIO . CreateWindowException . show $ config {Resource.configHints = hints}
         -- set up context
         forM_ intervalHuh $ \interval -> do
             Call.debug "some context shuffling for swapInterval {"
@@ -138,15 +138,18 @@ instance GPipe.ContextHandler Handle where
             Resource.WindowConfig _ _ title monitor _ intervalHuh = config
             (userHints, disallowedHints) = partition Format.allowedHint $ Resource.configHints config
             hints = userHints ++ Format.bitsToHints (fst <$> settings) ++ Format.unconditionalHints
---      reply <- newEmptyMVar
---      async <- asyncBound $ do
---          comm <- RPC.newBound
---          putMVar reply comm
---          -- TODO: drop into a mainloop with closure: window, handle
---          return ()
---      -- XXX: waiting on this mvar lets us bail if there's an issue in the async
---      comm <- takeMVar reply
---      -- TODO: poll the async before returning the Context (not really necessary.. also racey)
+
+{- -- junk which might be part of this later, if we do 1:1 contexts and threads
+     reply <- newEmptyMVar
+     async <- asyncBound $ do
+         comm <- RPC.newBound
+         putMVar reply comm
+         -- TODO: drop into a mainloop with closure: window, handle
+         return ()
+     -- XXX: waiting on this mvar lets us bail if there's an issue in the async
+     comm <- takeMVar reply
+     -- TODO: poll the async before returning the Context (not really necessary.. also racey)
+-}
 
     -- GPipe Docs:
     --
@@ -163,7 +166,6 @@ instance GPipe.ContextHandler Handle where
         void $ withContext "contextDoAsync" mmContext $ \context -> do
             Call.makeContextCurrent . pure . contextRaw $ context
             action
---          Just ctx -> RPC.sendEffect (contextComm ctx) action
 
     -- GPipe Docs:
     -- Swap the front and back buffers in the context's default frame buffer.
@@ -256,10 +258,8 @@ data EventPolicy
 -- complex applications. Can be called with /any/ window you've created.
 --
 -- * Must be called on the main thread.
---
--- [eventPolicy] 'Poll' or 'Wait'. 'Poll' will process events and return
--- immediately while 'Wait' will sleep until events are received.
-mainstep :: Window -> EventPolicy -> IO ()
+mainstep :: Window -> EventPolicy -- ^ 'Poll' will process events and return immediately while 'Wait' will sleep until events are received.
+    -> IO ()
 mainstep (Window (mmContext, handle)) eventPolicy = do
     tid <- myThreadId
     when (tid /= handleTid handle)
@@ -278,10 +278,8 @@ mainstep (Window (mmContext, handle)) eventPolicy = do
 -- less complex applications or use 'mainstep' for a custom loop.
 --
 -- * Must be called on the main thread.
---
--- [eventPolicy] 'Poll' or 'Wait'. A 'Poll' loop runs continuously while a
--- 'Wait' loop sleeps until events or user input occur.
-mainloop :: Window -> EventPolicy -> IO ()
+mainloop :: Window -> EventPolicy -- ^ A 'Poll' loop runs continuously while a 'Wait' loop sleeps until events or user input occur.
+    -> IO ()
 mainloop window@(Window (mmContext, handle)) eventPolicy = do
     mainstep window eventPolicy
     ctxs <- readTVarIO $ handleCtxs handle

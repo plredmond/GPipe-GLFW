@@ -1,14 +1,16 @@
 {-# LANGUAGE Rank2Types #-} -- For `forall` in projectLines
+{-# LANGUAGE TypeFamilies #-} -- For `forall` in projectLines
 {-# LANGUAGE FlexibleInstances #-} -- For Controller instance on a tuple
 module Test.Common where
 
+import qualified System.Environment as Env
 import Control.Concurrent (threadDelay)
 import GHC.Float (double2Float)
 import Control.Monad.Exception (MonadException)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Traversable (forM)
 
-import Graphics.GPipe.Context.GLFW.Input (getTime)
+import qualified Graphics.GPipe.Context.GLFW as GLFW
 import Graphics.GPipe
 
 xAxis :: [(V3 Float, V3 Float)]
@@ -27,23 +29,13 @@ plane :: [(V3 Float, V3 Float)]
 plane = zip (repeat $ V3 1 1 1) -- white
     [V3 (-2) (-0.1) (-2), V3 (-2) (-0.1) 2, V3 2 (-0.1) 2, V3 2 (-0.1) (-2), V3 (-2) (-0.1) (-2)]
 
--- TODO: make tests
---   * basic
---   * split-thread load/render
---   * render multiple windows
-
 data ShaderEnv os = ShaderEnv
     { extractProjU :: (Buffer os (Uniform (V4 (B4 Float))), Int)
     , extractLinePA :: PrimitiveArray Lines (B3 Float, B3 Float)
     , extractRastOpts :: (Side, ViewPort, DepthRange)
     }
 
-initBuffers
-    :: (MonadIO m, ContextHandler w)
-    => [[(V3 Float, V3 Float)]]
-    -> Window os c ds
-    -> ContextT w os m ([Buffer os (B3 Float, B3 Float)], Buffer os (Uniform (V4 (B4 Float))))
-initBuffers rawMeshes win = do
+initBuffers win rawMeshes = do
     -- make mesh buffers
     meshesB <- forM rawMeshes $ \pts -> do
         buf <- newBuffer $ length pts
@@ -53,7 +45,7 @@ initBuffers rawMeshes win = do
     projMatB <- newBuffer 1
     return (meshesB, projMatB)
 
-projectLines :: forall os f. Shader os  (ShaderEnv os) (FragmentStream (V3 FFloat, FFloat))
+--projectLines :: forall os f. Shader os  (ShaderEnv os) (FragmentStream (V3 FFloat, FFloat))
 projectLines = do
     projMat <- getUniform extractProjU
     linePS <- toPrimitiveStream extractLinePA
@@ -65,19 +57,18 @@ projectLines = do
     where
         depth RasterizedInfo {rasterizedFragCoord = (V4 _ _ z _)} = z
 
--- TODO: just adds the draw call to the end of the shader & glues some init functions together
-initRenderContext
-    :: (MonadIO m, MonadException m)
-    => [[(V3 Float, V3 Float)]]
-    -> Window os c ds
-    -> ContextT w os m
-        ( [Buffer os (B3 Float, B3 Float)]
-        , Buffer os (Uniform (V4 (B4 Float)))
-        , CompiledShader os (ShaderEnv os)
-        )
-initRenderContext rawMeshes win = do
+checkEnv = do
+    val <- Env.lookupEnv "LIBGL_ALWAYS_SOFTWARE"
+    let warn = case val of
+            Nothing -> " !! If you don't have hardware support, expect a crash."
+            _ -> ""
+    putStrLn $ "LIBGL_ALWAYS_SOFTWARE: " ++ show val ++ warn
+
+-- XXX: just adds the draw call to the end of the shader & glues some init functions together
+initRenderContext win rawMeshes  = do
+    liftIO checkEnv
     projShader <- compileShader (projectLines >>= drawWindowColorDepth (const (win, ContextColorOption NoBlending $ pure True, DepthOption Less True)))
-    (meshesB, projMatB) <- initBuffers rawMeshes win
+    (meshesB, projMatB) <- initBuffers win rawMeshes
     return (meshesB, projMatB, projShader)
 
 computeProjMat :: Float -> V2 Int -> M44 Float
@@ -95,16 +86,17 @@ computeProjMat frac (V2 w h) = camera2clip !*! world2camera !*! model2world
             (fromIntegral w / fromIntegral h) -- aspect ratio
             1 100 -- near and far clipping plane
 
-basicRenderer
-    :: V2 Int
+renderStep
+    :: Window os RGBFloat Depth
+    -> V2 Int
     -> ( [Buffer os (B3 Float, B3 Float)]
        , Buffer os (Uniform (V4 (B4 Float)))
        , CompiledShader os (ShaderEnv os)
        )
     -> Render os ()
-basicRenderer size (meshesB, projMatB, projShader) = do
-    clearContextColor 0.2 -- grey
-    clearContextDepth 1 -- far plane
+renderStep win size (meshesB, projMatB, projShader) = do
+    clearWindowColor win 0.2 -- grey
+    clearWindowDepth win 1 -- far plane
     meshPAs <- forM meshesB $ \mesh -> do
         meshVA <- newVertexArray mesh
         return $ toPrimitiveArray LineStrip meshVA
@@ -129,24 +121,17 @@ instance Controller Double where
     frac now end = now / end
     next _ end = end
 
-mainloop
-    ::  (MonadIO m, MonadException m, Controller t)
-    => t
-    -> ( [Buffer os (B3 Float, B3 Float)]
-       , Buffer os (Uniform (V4 (B4 Float)))
-       , CompiledShader os (ShaderEnv os)
-       )
-    -> ContextT w os m ()
-mainloop frame resources@(_, projMatB, _) = do
-    t <- liftIO $ getTime
+mainloop win frame resources@(_, projMatB, _) = do
+    withContextWindow win $ maybe (print "no window!") (flip GLFW.mainstep GLFW.Poll)
+    t <- liftIO $ GLFW.getTime
     case t of
-        Nothing -> (liftIO $ putStrLn "Warning: unable to getTime") >> mainloop frame resources
+        Nothing -> (liftIO $ putStrLn "Warning: unable to getTime") >> mainloop win frame resources
         Just now | done now frame -> return ()
                  | otherwise -> do
             -- compute a projection matrix & write it to the buffer
-            size <- getContextBuffersSize
+            size <- getWindowSize win
             writeBuffer projMatB 0 [computeProjMat (double2Float $ frac now frame) size]
             -- render the scene and then loop
-            render $ basicRenderer size resources
-            swapContextBuffers
-            mainloop (next now frame) resources
+            render $ renderStep win size resources
+            swapWindowBuffers win
+            mainloop win (next now frame) resources
