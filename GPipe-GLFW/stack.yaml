@@ -8,4 +8,4 @@ packages:
   extra-dep: true
 
 extra-deps: []
-resolver: nightly-2016-12-03
+resolver: nightly-2017-04-23
