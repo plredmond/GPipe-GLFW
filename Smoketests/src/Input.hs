@@ -16,4 +16,4 @@ main = do
         Input.setKeyCallback win $ Just (\k i s m -> printf "Key: %s %s %s\n" (show k) (show i) (show s))
 
         resources <- C.initRenderContext win [C.plane, C.yAxis]
-        C.mainloop win (120 :: Int, 0 :: Int) resources
+        C.mainloop win (120 :: Int, 0 :: Int) resources (return ())

@@ -1,13 +1,10 @@
 -- | Internal module defining resources and associated types
 module Graphics.GPipe.Context.GLFW.Resource where
 
--- stdlib
-import Text.Printf (printf)
 -- thirdparty
 import qualified Graphics.UI.GLFW as GLFW
     ( Monitor
     , WindowHint
-    , ErrorCallback
     )
 
 -- | Configuration for a new GLFW window and associated OpenGL context.

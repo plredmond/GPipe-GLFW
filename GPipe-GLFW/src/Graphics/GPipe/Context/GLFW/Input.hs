@@ -1,19 +1,23 @@
--- | This module exposes much of the functionality that GLFW the __Input guide__ documents:
+-- | User input functions covering much of the GLFW __Input guide__:
 -- <http://www.glfw.org/docs/latest/input_guide.html>.
--- Other functionality can be found in the "Graphics.GPipe.Context.GLFW.Wrapped" module.
+-- For additional functionality see "Graphics.GPipe.Context.GLFW.Wrapped".
 --
 -- Actions are in the GPipe 'GPipe.ContextT' monad when a window handle is required,
 -- otherwise they are bare reexported IO actions which can be lifted into the 'GPipe.ContextT' monad.
+-- The 'Window' taken by many of these functions is the window resource from GPipe.
 
 module Graphics.GPipe.Context.GLFW.Input (
 
  -- * Event processing
  -- | Learn more: http://www.glfw.org/docs/latest/input_guide.html#events
  --
- -- Some functionality is managed by the 'mainloop' and 'mainstep' functions provided by "Graphics.GPipe.Context.GLFW".
- --
  --     * `glfwPollEvents`
  --     * `glfwWaitEvents`
+ --
+ -- GLFW Events are processed after each buffer swap by default. To change
+ -- event processing construct a 'HandleConfig' for 'runContextT'. For greater
+ -- control use the 'mainloop' and 'mainstep' functions provided by
+ -- "Graphics.GPipe.Context.GLFW".
  GLFW.postEmptyEvent,
  -- | Force wake from 'waitEvents' with a dummy event.
 
@@ -175,7 +179,7 @@ setStickyKeysInputMode :: MonadIO m => GPipe.Window os c ds -> StickyKeysInputMo
 setStickyKeysInputMode = wrapWindowFun Call.setStickyKeysInputMode
 
 getStickyKeysInputMode :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe StickyKeysInputMode)
-getStickyKeysInputMode = withWindow Call.getStickyKeysInputMode
+getStickyKeysInputMode = withWindowRPC Call.getStickyKeysInputMode
 
 -- | Register or unregister a callback to receive character input obeying keyboard layouts and modifier effects.
 setCharCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (Char -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
@@ -190,7 +194,7 @@ setCursorPosCallback = wrapCallbackSetter Call.setCursorPosCallback
 
 -- | Poll for the location of the mouse.
 getCursorPos :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe (Double, Double))
-getCursorPos = withWindow Call.getCursorPos
+getCursorPos = withWindowRPC Call.getCursorPos
 
 -- | GLFW supports setting cursor mode to support mouselook and other advanced uses of the mouse:
 -- <http://www.glfw.org/docs/latest/input_guide.html#cursor_mode>.
@@ -198,7 +202,7 @@ setCursorInputMode :: MonadIO m => GPipe.Window os c ds -> CursorInputMode -> GP
 setCursorInputMode = wrapWindowFun Call.setCursorInputMode
 
 getCursorInputMode :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe CursorInputMode)
-getCursorInputMode = withWindow Call.getCursorInputMode
+getCursorInputMode = withWindowRPC Call.getCursorInputMode
 
 -- | Set the cursor to be displayed over the window while 'CursorInputMode' is `Normal`.
 setCursor :: MonadIO m => GPipe.Window os c ds -> Cursor -> GPipe.ContextT Handle os m (Maybe ())
@@ -224,7 +228,7 @@ setStickyMouseButtonsInputMode :: MonadIO m => GPipe.Window os c ds -> StickyMou
 setStickyMouseButtonsInputMode = wrapWindowFun Call.setStickyMouseButtonsInputMode
 
 getStickyMouseButtonsInputMode :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe StickyMouseButtonsInputMode)
-getStickyMouseButtonsInputMode = withWindow Call.getStickyMouseButtonsInputMode
+getStickyMouseButtonsInputMode = withWindowRPC Call.getStickyMouseButtonsInputMode
 
 -- | Register or unregister a callback to receive scroll offset changes.
 setScrollCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (Double -> Double -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
@@ -238,7 +242,7 @@ setScrollCallback = wrapCallbackSetter Call.setScrollCallback
 
 -- | Poll the system clipboard for a UTF-8 encoded string, if one can be extracted.
 getClipboardString :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe (Maybe String))
-getClipboardString = withWindow Call.getClipboardString
+getClipboardString = withWindowRPC Call.getClipboardString
 
 -- | Store a UTF-8 encoded string in the system clipboard.
 setClipboardString :: MonadIO m => GPipe.Window os c ds -> String -> GPipe.ContextT Handle os m (Maybe ())

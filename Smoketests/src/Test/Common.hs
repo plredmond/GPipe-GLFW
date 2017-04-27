@@ -10,7 +10,7 @@ import Control.Monad.Exception (MonadException)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Traversable (forM)
 
-import qualified Graphics.GPipe.Context.GLFW as GLFW
+import qualified Graphics.GPipe.Context.GLFW as GLFW (getTime)
 import Graphics.GPipe
 
 xAxis :: [(V3 Float, V3 Float)]
@@ -121,11 +121,11 @@ instance Controller Double where
     frac now end = now / end
     next _ end = end
 
-mainloop win frame resources@(_, projMatB, _) = do
-    withContextWindow win $ maybe (print "no window!") (flip GLFW.mainstep GLFW.Poll)
+mainloop win frame resources@(_, projMatB, _) hook = do
+    hook
     t <- liftIO $ GLFW.getTime
     case t of
-        Nothing -> (liftIO $ putStrLn "Warning: unable to getTime") >> mainloop win frame resources
+        Nothing -> (liftIO $ putStrLn "Warning: unable to getTime") >> mainloop win frame resources hook
         Just now | done now frame -> return ()
                  | otherwise -> do
             -- compute a projection matrix & write it to the buffer
@@ -134,4 +134,4 @@ mainloop win frame resources@(_, projMatB, _) = do
             -- render the scene and then loop
             render $ renderStep win size resources
             swapWindowBuffers win
-            mainloop win (next now frame) resources
+            mainloop win (next now frame) resources hook

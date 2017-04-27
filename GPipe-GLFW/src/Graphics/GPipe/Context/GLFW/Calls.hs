@@ -60,6 +60,9 @@ createWindow onMain width height title monitor hints parent = onMain $ do
 -- * The context of the specified window must not be current on any other thread when this function is called.
 -- * ~~This function must not be called from a callback.~~
 -- * This function must only be called from the main thread.
+--
+-- Seems like it's ok to delete any of the shared contexts any time, per:
+-- https://khronos.org/registry/OpenGL/specs/gl/glspec45.core.pdf (Section 5.1.1)
 destroyWindow :: EffectMain -> GLFW.Window -> IO ()
 destroyWindow onMain window = onMain $ GLFW.destroyWindow window
 

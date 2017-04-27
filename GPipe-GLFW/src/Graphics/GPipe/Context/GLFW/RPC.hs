@@ -21,14 +21,16 @@ data RPC
     = Execute (IO ())
     | Noop
 
+-- | Create an RPC handle bound to the current thread. Actions sent from the
+-- bound thread will just be run w/o doing an RPC.
 newBound :: IO Handle
 newBound = do
     tid <- myThreadId
     comm <- atomically $ newTQueue
     return $ Handle tid comm
 
--- XXX: consider pushing bound-check to all callsites of sendEffect, fetchResult
--- TODO: dry-up thread bound check
+-- XXX: consider pushing thread-check to all callsites of sendEffect, fetchResult
+-- TODO: dry-up thread id check
 sendEffect :: Handle -> IO () -> IO ()
 sendEffect (Handle boundTid comm) action = do
     tid <- myThreadId

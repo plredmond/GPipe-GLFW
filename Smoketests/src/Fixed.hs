@@ -9,6 +9,6 @@ main = do
     runContextT GLFW.defaultHandleConfig $ do
         win <- newWindow (WindowFormatColorDepth RGB8 Depth16) (GLFW.defaultWindowConfig "Fixed")
         resources <- C.initRenderContext win [C.xAxis, C.yAxis, C.zAxis, C.plane]
-        C.mainloop win (maxFrames, 0 :: Int) resources
+        C.mainloop win (maxFrames, 0 :: Int) resources (return ())
     where
         maxFrames = 60 :: Int

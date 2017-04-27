@@ -11,6 +11,8 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Graphics.GPipe as GPipe
 import Graphics.UI.GLFW (WindowHint(..))
 
+-- | IO Exception thrown when attempting to create a new window using GLFW
+-- hints which GPipe manages.
 data UnsafeWindowHintsException = UnsafeWindowHintsException [WindowHint]
     deriving
     ( Exception
