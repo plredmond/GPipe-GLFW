@@ -20,8 +20,6 @@ maintainer:     Patrick Redmond
 library
   hs-source-dirs:      src
   build-depends:       base                   >= 4.7 && <4.10
-                     , transformers           >= 0.3 && <0.6
-                     , exception-transformers >= 0.3 && <0.5
                      , stm                    >= 2.4 && <2.5
                      , containers             >= 0.5 && <0.6
                      , async                  >= 2.1 && <2.3

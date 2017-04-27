@@ -155,8 +155,7 @@ instance GPipe.ContextHandler Handle where
                 (Nothing, Nothing) -> throwIO . CreateWindowException . show $ config {Resource.configHints = hints}
         -- set up context
         forM_ intervalHuh $ \interval -> do
-            Call.debug "vsync context shuffle"
-            Call.makeContextCurrent $ pure window
+            Call.makeContextCurrent "apply vsync setting" $ pure window
             Call.swapInterval interval
         -- wrap up context
         mmContext <- newMVar . pure $ Context window
@@ -171,13 +170,16 @@ instance GPipe.ContextHandler Handle where
 
     -- Threading assumption: any thread
     --
-    -- Do work with the specified context by making it current. If there's a
-    -- lot of context swapping, change this to RPC to a context-private thread
-    -- running a mainloop.
-    contextDoAsync _ Nothing _action = Call.debug "contextDoAsync called w/o context"
+    -- Do work with the specified context by making it current. If no context
+    -- is specified, then any context being current is sufficient.
+    --
+    -- XXX: If there's a lot of context swapping, change this to RPC to a
+    -- context-private thread running a mainloop.
+    contextDoAsync _ Nothing _action = do
+        Call.debug "TODO: contextDoAsync called w/o context; ensure any context is current"
     contextDoAsync _ (Just (WWindow (mmContext, _))) action =
         void $ withContext "contextDoAsync" mmContext $ \context -> do
-            Call.makeContextCurrent . pure . contextRaw $ context
+            Call.makeContextCurrent "contextDoAsync required it" . pure . contextRaw $ context
             action
 
     -- Threading assumption: main thread
@@ -211,7 +213,7 @@ instance GPipe.ContextHandler Handle where
         modifyMVar_ mmContext $ \mContext -> do
             Call.debug $ printf "contextDelete of %s" (show $ contextRaw <$> mContext)
             forM_ mContext $ \context -> RPC.sendEffect (handleComm handle) $ do
-                Call.makeContextCurrent (pure $ contextRaw context)
+                Call.makeContextCurrent "contextDelete" . pure . contextRaw $ context
                 Call.destroyWindow id (contextRaw context) -- id RPC because this is in a mainthread RPC
             return Nothing
         -- remove the context from the handle

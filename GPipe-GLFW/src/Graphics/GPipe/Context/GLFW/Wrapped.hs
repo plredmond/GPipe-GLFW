@@ -17,8 +17,3 @@ import qualified Graphics.GPipe.Context.GLFW.Wrappers as Wrappers
 
 windowShouldClose :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe Bool)
 windowShouldClose = Wrappers.withWindow Call.windowShouldClose
-
---TODO: setWindowShouldClose
---TODO: WindowHint, and associated methods
---TODO: Monitor, and associated methods
---TODO: ErrorCallback

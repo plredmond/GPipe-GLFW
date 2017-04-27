@@ -73,11 +73,12 @@ windowHints onMain hints = onMain $ GLFW.defaultWindowHints >> mapM_ GLFW.window
 
 -- |
 -- * This function may be called from any thread.
-makeContextCurrent :: Maybe GLFW.Window -> IO ()
-makeContextCurrent windowHuh = do
+makeContextCurrent :: String -> Maybe GLFW.Window -> IO ()
+makeContextCurrent reason windowHuh = do
     ccHuh <- GLFW.getCurrentContext
-    when (ccHuh /= windowHuh) (debug . Text.printf "attaching %s" $ show windowHuh)
-    GLFW.makeContextCurrent windowHuh
+    when (ccHuh /= windowHuh) $ do
+        debug $ Text.printf "attaching %s, reason: %s" (show windowHuh) reason
+        GLFW.makeContextCurrent windowHuh
 
 -- | 
 -- * A context must be current on the calling thread. Calling this function without a current context will cause a GLFW_NO_CURRENT_CONTEXT error.

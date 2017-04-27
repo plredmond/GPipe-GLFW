@@ -4,11 +4,6 @@ packages:
 - location: '..'
   subdirs: [ GPipe-GLFW ]
   extra-dep: true
-- location: # '../../@gpipe'
-    git: git@github.com:plredmond/GPipe-Core.git
-    commit: 048f9a35556dca322973bddb35a550e010cea261
-  subdirs: [ GPipe-Core ]
-  extra-dep: true
-
-extra-deps: []
+extra-deps:
+- GPipe-2.2
 resolver: nightly-2017-04-23
