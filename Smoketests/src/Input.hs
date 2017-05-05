@@ -2,6 +2,7 @@ import Graphics.GPipe
 import qualified Graphics.GPipe.Context.GLFW as GLFW
 import qualified Graphics.GPipe.Context.GLFW.Input as Input
 import qualified Test.Common as C
+import qualified Test.Control as A
 import Text.Printf (printf)
 
 main :: IO ()
@@ -16,4 +17,4 @@ main = do
         Input.setKeyCallback win $ Just (\k i s m -> printf "Key: %s %s %s\n" (show k) (show i) (show s))
 
         resources <- C.initRenderContext win [C.plane, C.yAxis]
-        C.mainloop win (120 :: Int, 0 :: Int) resources (return ())
+        C.mainloop win (A.frames 120) resources C.continue

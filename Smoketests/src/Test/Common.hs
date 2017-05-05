@@ -1,6 +1,5 @@
 {-# LANGUAGE Rank2Types #-} -- For `forall` in projectLines
 {-# LANGUAGE TypeFamilies #-} -- For `forall` in projectLines
-{-# LANGUAGE FlexibleInstances #-} -- For Controller instance on a tuple
 module Test.Common where
 
 import qualified System.Environment as Env
@@ -12,6 +11,7 @@ import Data.Traversable (forM)
 
 import qualified Graphics.GPipe.Context.GLFW as GLFW (getTime)
 import Graphics.GPipe
+import Test.Control (Controller(..))
 
 xAxis :: [(V3 Float, V3 Float)]
 xAxis = zip (repeat $ V3 1 0 0) -- red
@@ -102,36 +102,19 @@ renderStep win size (meshesB, projMatB, projShader) = do
         return $ toPrimitiveArray LineStrip meshVA
     projShader $ ShaderEnv (projMatB, 0) (mconcat meshPAs) (Front, ViewPort 0 size, DepthRange 0 1)
 
--- | Functions to control animation progress and completion. First argument is the result of GLFW.getTime.
-class Controller c where
-    done :: Double -> c -> Bool -- | Are we done yet?
-    done now c = frac now c >= 1.0
-    frac :: Double -> c -> Double -- | What fraction of completion have we reached?
-    next :: Double -> c -> c -- | Advance to the next frame.
+continue :: Monad m => a -> m Bool
+continue _ = return False
 
--- | Render a fixed set of frames, irrespective of time.
-instance Controller (Int, Int) where
---  done _ (maxFrame, curFrame) = curFrame >= maxFrame
-    frac _ (maxFrame, curFrame) = fromIntegral curFrame / fromIntegral maxFrame
-    next _ = fmap (+1)
-
--- | Render for a time period, dropping missed frames.
-instance Controller Double where
---  done now end = now >= end
-    frac now end = now / end
-    next _ end = end
-
-mainloop win frame resources@(_, projMatB, _) hook = do
-    hook
-    t <- liftIO $ GLFW.getTime
-    case t of
-        Nothing -> (liftIO $ putStrLn "Warning: unable to getTime") >> mainloop win frame resources hook
-        Just now | done now frame -> return ()
-                 | otherwise -> do
-            -- compute a projection matrix & write it to the buffer
-            size <- getWindowSize win
-            writeBuffer projMatB 0 [computeProjMat (double2Float $ frac now frame) size]
-            -- render the scene and then loop
-            render $ renderStep win size resources
-            swapWindowBuffers win
-            mainloop win (next now frame) resources hook
+mainloop win controller resources@(_, projMatB, _) hook = do
+    stop <- hook controller
+    Just now <- liftIO $ GLFW.getTime
+    if done now controller || stop
+    then return ()
+    else do
+        -- compute a projection matrix & write it to the buffer
+        size <- getWindowSize win
+        writeBuffer projMatB 0 [computeProjMat (double2Float $ frac now controller) size]
+        -- render the scene and then loop
+        render $ renderStep win size resources
+        swapWindowBuffers win
+        mainloop win (next now controller) resources hook
