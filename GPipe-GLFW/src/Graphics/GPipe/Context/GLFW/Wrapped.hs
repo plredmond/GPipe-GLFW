@@ -7,6 +7,8 @@
 module Graphics.GPipe.Context.GLFW.Wrapped
 ( windowShouldClose
 , setWindowShouldClose
+, ErrorCallback
+, Error(..)
 ) where
 
 -- stdlib
@@ -14,6 +16,7 @@ import Control.Monad.IO.Class (MonadIO)
 -- thirdparty
 import qualified Graphics.GPipe.Context as GPipe (ContextT, Window())
 -- local
+import Graphics.UI.GLFW (ErrorCallback, Error(..))
 import Graphics.GPipe.Context.GLFW.Handler (Handle(..))
 import qualified Graphics.GPipe.Context.GLFW.Calls as Call
 import qualified Graphics.GPipe.Context.GLFW.Wrappers as Wrappers

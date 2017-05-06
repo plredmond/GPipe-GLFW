@@ -11,7 +11,7 @@ main = do
     -- TODO: make it a fullscreen window
     -- TODO: set an error callback
     -- TODO: Set some window hints
-    runContextT GLFW.defaultHandleConfig $ do
+    runContextT handleConfig $ do
         win <- newWindow (WindowFormatColorDepth RGB8 Depth16) (GLFW.defaultWindowConfig "Essential")
         resources <- C.initRenderContext win [C.xAxis, C.yAxis, C.zAxis]
         C.mainloop win (A.repeat $ A.seconds 1.0) resources $ \controller -> do
@@ -21,3 +21,5 @@ main = do
                 return ()
             shouldClose <- GLFW.windowShouldClose win
             return $ maybe False id shouldClose
+    where
+        handleConfig = GLFW.defaultHandleConfig {GLFW.configErrorCallback=curry print :: GLFW.ErrorCallback}
