@@ -7,10 +7,9 @@ module Graphics.GPipe.Context.GLFW.Misc (
 -- * Error handling
 -- | Learn more: http://www.glfw.org/docs/latest/intro_guide.html#error_handling
 
--- | To set a custom 'ErrorCallback', use 'HandleConfig' in "Graphics.GPipe.Context.GLFW".
-ErrorCallback,
+-- | To set a custom error callback use 'HandleConfig' in "Graphics.GPipe.Context.GLFW".
 Error(..),
 ) where
 
 -- thirdparty
-import Graphics.UI.GLFW (ErrorCallback, Error(..))
+import Graphics.UI.GLFW (Error(..))

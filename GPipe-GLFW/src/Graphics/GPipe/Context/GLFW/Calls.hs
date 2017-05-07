@@ -122,6 +122,11 @@ setWindowShouldClose window bool = GLFW.setWindowShouldClose window bool
 
 -- |
 -- * This function must only be called from the main thread.
+setWindowCloseCallback :: EffectMain -> GLFW.Window -> Maybe GLFW.WindowCloseCallback -> IO ()
+setWindowCloseCallback onMain window cb = onMain $ GLFW.setWindowCloseCallback window cb
+
+-- |
+-- * This function must only be called from the main thread.
 getFramebufferSize :: OnMain (Int, Int) -> GLFW.Window -> IO (Int, Int)
 getFramebufferSize onMain window = onMain $ GLFW.getFramebufferSize window
 
