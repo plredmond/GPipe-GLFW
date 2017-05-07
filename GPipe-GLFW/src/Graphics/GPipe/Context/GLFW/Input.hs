@@ -1,6 +1,5 @@
 -- | User input functions covering much of the GLFW __Input guide__:
 -- <http://www.glfw.org/docs/latest/input_guide.html>.
--- For additional functionality see "Graphics.GPipe.Context.GLFW.Wrapped".
 --
 -- Actions are in the GPipe 'GPipe.ContextT' monad when a window handle is required,
 -- otherwise they are bare reexported IO actions which can be lifted into the 'GPipe.ContextT' monad.

@@ -32,7 +32,8 @@ mainloop,
 mainstep,
 -- ** Reexports
 module Graphics.GPipe.Context.GLFW.Input,
-module Graphics.GPipe.Context.GLFW.Wrapped
+module Graphics.GPipe.Context.GLFW.Window,
+module Graphics.GPipe.Context.GLFW.Misc
 ) where
 
 -- internal
@@ -41,4 +42,5 @@ import Graphics.GPipe.Context.GLFW.Resource
 import Graphics.GPipe.Context.GLFW.Handler
 -- reexports
 import Graphics.GPipe.Context.GLFW.Input
-import Graphics.GPipe.Context.GLFW.Wrapped
+import Graphics.GPipe.Context.GLFW.Window
+import Graphics.GPipe.Context.GLFW.Misc

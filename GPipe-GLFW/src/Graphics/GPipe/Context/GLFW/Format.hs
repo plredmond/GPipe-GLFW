@@ -21,8 +21,8 @@ data UnsafeWindowHintsException = UnsafeWindowHintsException [WindowHint]
 instance Exception [WindowHint]
 
 allowedHint :: WindowHint -> Bool
-allowedHint (WindowHint'sRGBCapable _) = False
 allowedHint (WindowHint'Visible _) = False
+allowedHint (WindowHint'sRGBCapable _) = False
 allowedHint (WindowHint'RedBits _) = False
 allowedHint (WindowHint'GreenBits _) = False
 allowedHint (WindowHint'BlueBits _) = False

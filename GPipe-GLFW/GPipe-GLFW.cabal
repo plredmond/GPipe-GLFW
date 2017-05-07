@@ -29,7 +29,8 @@ library
   default-language:    Haskell2010
   exposed-modules:     Graphics.GPipe.Context.GLFW
                        Graphics.GPipe.Context.GLFW.Input
-                       Graphics.GPipe.Context.GLFW.Wrapped
+                       Graphics.GPipe.Context.GLFW.Window
+                       Graphics.GPipe.Context.GLFW.Misc
   other-modules:       Graphics.GPipe.Context.GLFW.Calls
                        Graphics.GPipe.Context.GLFW.Resource
                        Graphics.GPipe.Context.GLFW.Wrappers
