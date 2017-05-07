@@ -227,9 +227,7 @@ createWindow parentHuh settings = do
     -- make a context
     windowHuh <- Call.createWindow id width height title monitor hints parentHuh -- id RPC because contextHandlerCreate & createContext are called only on mainthread
     Call.debug $ printf "made context %s -> parent %s" (show windowHuh) (show parentHuh)
-    window <- case windowHuh of
-        Just w -> return w
-        Nothing -> throwIO . CreateSharedWindowException . show $ config {Resource.configHints = hints}
+    window <- maybe exc return windowHuh
     -- set up context
     forM_ intervalHuh $ \interval -> do
         Call.makeContextCurrent "apply vsync setting" $ pure window
@@ -242,6 +240,7 @@ createWindow parentHuh settings = do
         Resource.WindowConfig _ _ title monitor _ intervalHuh = config
         (userHints, disallowedHints) = partition Format.allowedHint $ Resource.configHints config
         hints = userHints ++ Format.bitsToHints (fst <$> settings) ++ Format.unconditionalHints
+        exc = throwIO . CreateSharedWindowException . show $ config {Resource.configHints = hints}
 
 -- | Type to describe the waiting or polling style of event processing
 -- supported by GLFW.
