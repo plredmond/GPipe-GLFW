@@ -23,7 +23,7 @@ import Control.Concurrent
     , ThreadId, myThreadId
     )
 -- thirdparty
-import qualified Graphics.GPipe.Context as GPipe (ContextHandler(..), Window(), ContextT(), withContextWindow)
+import qualified Graphics.GPipe as GPipe (ContextHandler(..), Window(), ContextT(), WindowBits, withContextWindow)
 import qualified Graphics.UI.GLFW as GLFW (Window, ErrorCallback)
 -- local
 import qualified Graphics.GPipe.Context.GLFW.Calls as Call
@@ -59,6 +59,7 @@ type MMContext = MVar (Maybe Context)
 data Handle = Handle
     { handleTid :: ThreadId
     , handleComm :: RPC.Handle
+    , handleRaw :: GLFW.Window
     , handleCtxs :: TVar [MMContext]
     , handleEventPolicy :: Maybe EventPolicy
     }
@@ -73,14 +74,6 @@ withContext callerTag mmContext action = withMVar mmContext go
     where
         go Nothing = Call.debug (printf "%s: GPipe-GLFW context already closed" callerTag) >> return Nothing
         go (Just context) = pure <$> action context
-
--- FIXME: May cause crashes in windows (os) because windows (os) requires parent contexts to be uncurrent; easy fix
--- | Run the action. If any open context is avaiable, take it and pass it into the action.
-withAnyContext :: Handle -> (Maybe Context -> IO a) -> IO a
-withAnyContext handle action = readTVarIO (handleCtxs handle) >>= go
-    where
-        go (mmContext:ctxs) = withContext "withAnyContext" mmContext (action . pure) >>= maybe (go ctxs) return
-        go [] = action Nothing
 
 -- | Template for "Run the action with XYZ /if the gpipe window still exists and ABC/."
 unwrappingGPipeWindow :: MonadIO m
@@ -143,30 +136,10 @@ instance GPipe.ContextHandler Handle where
     -- Create a context which shares objects with the contexts created by this
     -- handle, if any.
     createContext handle settings = do
-        unless (null disallowedHints) $
-            throwIO $ Format.UnsafeWindowHintsException disallowedHints
-        -- make a context
-        window <- withAnyContext handle $ \parent -> do
-            windowHuh <- Call.createWindow (onMain handle) width height title monitor hints (contextRaw <$> parent)
-            Call.debug $ printf "contextCreate made %s -> parent %s" (show windowHuh) (show $ contextRaw <$> parent)
-            case (windowHuh, parent) of
-                (Just w, _) -> return w
-                (Nothing, Just _) -> throwIO . CreateSharedWindowException . show $ config {Resource.configHints = hints}
-                (Nothing, Nothing) -> throwIO . CreateWindowException . show $ config {Resource.configHints = hints}
-        -- set up context
-        forM_ intervalHuh $ \interval -> do
-            Call.makeContextCurrent "apply vsync setting" $ pure window
-            Call.swapInterval interval
-        -- wrap up context
+        window <- createWindow (Just $ handleRaw handle) settings
         mmContext <- newMVar . pure $ Context window
         atomically $ modifyTVar (handleCtxs handle) (mmContext :)
         return $ WWindow (mmContext, handle)
-        where
-            config = fromMaybe (defaultWindowConfig "") (snd <$> settings)
-            Resource.WindowConfig {Resource.configWidth=width, Resource.configHeight=height} = config
-            Resource.WindowConfig _ _ title monitor _ intervalHuh = config
-            (userHints, disallowedHints) = partition Format.allowedHint $ Resource.configHints config
-            hints = userHints ++ Format.bitsToHints (fst <$> settings) ++ Format.unconditionalHints
 
     -- Threading assumption: any thread
     --
@@ -231,7 +204,8 @@ instance GPipe.ContextHandler Handle where
         ok <- Call.init id -- id RPC because contextHandlerCreate is called only on mainthread
         unless ok $ throwIO InitException
         -- wrap up handle
-        return $ Handle tid comm ctxs eventPolicy
+        ancestor <- createWindow Nothing Nothing
+        return $ Handle tid comm ancestor ctxs eventPolicy
         where
             HandleConfig errorHandler eventPolicy = config
 
@@ -244,6 +218,30 @@ instance GPipe.ContextHandler Handle where
         -- all resources are released
         Call.terminate id -- id RPC because contextHandlerDelete is called only on mainthread
         Call.setErrorCallback id Nothing -- id RPC because contextHandlerDelete is called only on mainthread
+
+-- Create a raw GLFW window for use by contextHandlerCreate & createContext
+createWindow :: Maybe GLFW.Window -> Maybe (GPipe.WindowBits, Resource.WindowConfig) -> IO GLFW.Window
+createWindow parentHuh settings = do
+    unless (null disallowedHints) $
+        throwIO $ Format.UnsafeWindowHintsException disallowedHints
+    -- make a context
+    windowHuh <- Call.createWindow id width height title monitor hints parentHuh -- id RPC because contextHandlerCreate & createContext are called only on mainthread
+    Call.debug $ printf "made context %s -> parent %s" (show windowHuh) (show parentHuh)
+    window <- case windowHuh of
+        Just w -> return w
+        Nothing -> throwIO . CreateSharedWindowException . show $ config {Resource.configHints = hints}
+    -- set up context
+    forM_ intervalHuh $ \interval -> do
+        Call.makeContextCurrent "apply vsync setting" $ pure window
+        Call.swapInterval interval
+    -- done
+    return window
+    where
+        config = fromMaybe (defaultWindowConfig "") (snd <$> settings)
+        Resource.WindowConfig {Resource.configWidth=width, Resource.configHeight=height} = config
+        Resource.WindowConfig _ _ title monitor _ intervalHuh = config
+        (userHints, disallowedHints) = partition Format.allowedHint $ Resource.configHints config
+        hints = userHints ++ Format.bitsToHints (fst <$> settings) ++ Format.unconditionalHints
 
 -- | Type to describe the waiting or polling style of event processing
 -- supported by GLFW.
