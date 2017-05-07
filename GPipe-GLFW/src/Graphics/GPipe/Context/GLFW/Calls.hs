@@ -14,13 +14,18 @@ import qualified Graphics.UI.GLFW as GLFW
 -- TODO: maybe an OnMain monad would be good to reduce the number of RPCS? Not really necessary, since they can already be easily sequenced with IO
 
 -- |
+-- * This function may be called from any thread.
+getCurrentContext :: IO (Maybe GLFW.Window)
+getCurrentContext = GLFW.getCurrentContext
+
+-- |
 -- * 2x This function may be called from any thread.
 -- * Reading and writing of the internal timer offset is not atomic, so it needs to be externally synchronized with calls to glfwSetTime.
 debug :: String -> IO ()
 debug msg = do
     t <- GLFW.getTime
     tid <- Conc.myThreadId
-    c <- GLFW.getCurrentContext
+    c <- getCurrentContext
     Text.printf "[%03.3fs, %s has %s]: %s\n" (maybe (0/0) id t) (show tid) (show c) msg
 
 type OnMain a = IO a -> IO a
@@ -75,7 +80,7 @@ windowHints onMain hints = onMain $ GLFW.defaultWindowHints >> mapM_ GLFW.window
 -- * This function may be called from any thread.
 makeContextCurrent :: String -> Maybe GLFW.Window -> IO ()
 makeContextCurrent reason windowHuh = do
-    ccHuh <- GLFW.getCurrentContext
+    ccHuh <- getCurrentContext
     when (ccHuh /= windowHuh) $ do
         debug $ Text.printf "attaching %s, reason: %s" (show windowHuh) reason
         GLFW.makeContextCurrent windowHuh

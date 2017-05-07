@@ -148,11 +148,17 @@ instance GPipe.ContextHandler Handle where
     --
     -- XXX: If there's a lot of context swapping, change this to RPC to a
     -- context-private thread running a mainloop.
-    contextDoAsync _ Nothing _action = do
-        Call.debug "TODO: contextDoAsync called w/o context; ensure any context is current"
+    contextDoAsync handle Nothing action = RPC.sendEffect (handleComm handle) $ do
+        -- (on main thread) Make the ancestor current if nothing else already is
+        -- FIXME: these two bodies could be combined, perhaps.. the RPC is only necessary if the current thread lacks a context
+        ccHuh <- Call.getCurrentContext
+        maybe (Call.makeContextCurrent "contextDoAsync required some context" . pure . handleRaw $ handle)
+            (const $ return ())
+            ccHuh
+        action
     contextDoAsync _ (Just (WWindow (mmContext, _))) action =
         void $ withContext "contextDoAsync" mmContext $ \context -> do
-            Call.makeContextCurrent "contextDoAsync required it" . pure . contextRaw $ context
+            Call.makeContextCurrent "contextDoAsync required a specific context" . pure . contextRaw $ context
             action
 
     -- Threading assumption: main thread
