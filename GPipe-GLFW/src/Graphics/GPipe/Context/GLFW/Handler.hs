@@ -24,7 +24,7 @@ import Control.Concurrent
     )
 -- thirdparty
 import qualified Graphics.GPipe as GPipe (ContextHandler(..), Window(), ContextT(), WindowBits, withContextWindow)
-import qualified Graphics.UI.GLFW as GLFW (Window, ErrorCallback)
+import qualified Graphics.UI.GLFW as GLFW (Window, Error)
 -- local
 import qualified Graphics.GPipe.Context.GLFW.Calls as Call
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
@@ -120,8 +120,8 @@ instance GPipe.ContextHandler Handle where
 
     -- | Configuration for the GLFW handle.
     data ContextHandlerParameters Handle = HandleConfig
-        { -- | Specify a callback to handle errors captured by GLFW.
-          configErrorCallback :: GLFW.ErrorCallback
+        { -- | Specify a callback to handle errors emitted by GLFW.
+          configErrorCallback :: GLFW.Error -> String -> IO ()
           -- | Specify the 'EventPolicy' to use for automatic GLFW event
           -- processing. Set to 'Nothing' to disable automatic event processing
           -- (you'll need to call 'mainloop' or 'mainstep').
