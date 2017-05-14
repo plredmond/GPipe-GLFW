@@ -112,7 +112,7 @@ mainloop win controller resources@(_, projMatB, _) hook = do
     then return ()
     else do
         -- compute a projection matrix & write it to the buffer
-        size <- getWindowSize win
+        size <- getFrameBufferSize win
         writeBuffer projMatB 0 [computeProjMat (double2Float $ frac now controller) size]
         -- render the scene and then loop
         render $ renderStep win size resources

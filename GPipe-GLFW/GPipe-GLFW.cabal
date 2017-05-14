@@ -1,5 +1,5 @@
 name:           GPipe-GLFW
-version:        1.4.0
+version:        1.4.1
 cabal-version:  >=1.10
 build-type:     Simple
 author:         Patrick Redmond
@@ -47,4 +47,4 @@ source-repository this
   type:     git
   location: https://github.com/plredmond/GPipe-GLFW.git
   subdir:   GPipe-GLFW
-  tag:      v1.4.0
+  tag:      v1.4.1

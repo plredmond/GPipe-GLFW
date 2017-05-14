@@ -12,6 +12,15 @@ Find GPipe-GLFW on
 
 ## Changes
 
+See repo tags.
+
+* 1.4.1
+    * Split `Wrapped` module to `Window` and `Misc` modules.
+    * Don't expose `ErrorCallback`, do expose  the `Error` type for custom error callbacks.
+    * Switch from ad-hoc parenting for shared contexts, to the "ancestor" pattern described in [#24](https://github.com/plredmond/GPipe-GLFW/issues/24#issuecomment-299681824)
+    * Adjustments to debug logging format.
+    * Add smoketest for window close functions & sequential GPipe windows.
+    * Bump deps to GPipe-2.2.1.
 * 1.4.0
     * Rewrite for new window handling interface. Separate smoke tests to own package.
 * 1.3.0
