@@ -230,3 +230,9 @@ setClipboardString onMain window s = onMain $ GLFW.setClipboardString window s
 -- * This function must only be called from the main thread.
 setDropCallback :: EffectMain -> GLFW.Window -> Maybe GLFW.DropCallback -> IO ()
 setDropCallback onMain window cb = onMain $ GLFW.setDropCallback window cb
+
+
+-- |
+-- * This function must only be called from the main thread.
+getWindowSize :: OnMain (Int, Int) -> GLFW.Window -> IO (Int, Int )
+getWindowSize onMain window = onMain $ GLFW.getWindowSize window
