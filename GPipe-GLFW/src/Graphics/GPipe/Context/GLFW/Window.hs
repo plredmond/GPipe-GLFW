@@ -23,6 +23,13 @@ windowShouldClose,
 setWindowShouldClose,
 setWindowCloseCallback,
 
+-- ** Window size
+getWindowSize,
+
+-- ** Framebuffer size
+-- | Reexported from "Graphics.GPipe.Context".
+GPipe.getFrameBufferSize,
+
 -- * Buffer swapping
 -- | Buffer swapping is initiated via the 'GPipe' @swapBuffers@ function.
 
@@ -35,13 +42,16 @@ setWindowCloseCallback,
 -- stdlib
 import Control.Monad.IO.Class (MonadIO)
 --thirdparty
-import qualified Graphics.GPipe.Context as GPipe (ContextT, Window())
+import qualified Graphics.GPipe.Context as GPipe (ContextT, Window(), getFrameBufferSize)
 --local
 import Graphics.GPipe.Context.GLFW.Handler (Handle(..))
 import qualified Graphics.GPipe.Context.GLFW.Calls as Call
 import qualified Graphics.GPipe.Context.GLFW.Wrappers as Wrappers
 
 -- TODO: function docstrings
+
+getWindowSize :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe (Int, Int))
+getWindowSize = Wrappers.withWindowRPC Call.getWindowSize
 
 windowShouldClose :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe Bool)
 windowShouldClose = Wrappers.withWindow Call.windowShouldClose
