@@ -19,7 +19,7 @@ maintainer:     Patrick Redmond
 
 library
   hs-source-dirs:      src
-  build-depends:       base                   >= 4.7 && <4.10
+  build-depends:       base                   >= 4.7 && <4.11
                      , stm                    >= 2.4 && <2.5
                      , containers             >= 0.5 && <0.6
                      , async                  >= 2.1 && <2.3

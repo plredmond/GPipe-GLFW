@@ -1,6 +1,6 @@
 flags: {}
 packages:
 - '.'
-extra-deps:
-- GPipe-2.2.1
-resolver: nightly-2017-04-23
+extra-deps: []
+resolver: lts-9.0
+extra-package-dbs: []
