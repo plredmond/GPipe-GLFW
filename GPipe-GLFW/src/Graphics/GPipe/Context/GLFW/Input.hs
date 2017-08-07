@@ -132,6 +132,9 @@ module Graphics.GPipe.Context.GLFW.Input (
  --     * `glfwSetJoystickCallback`
  --     * `glfwGetTimerValue`
  --     * `glfwGetTimerFrequency`
+
+ -- ** Window Size
+ getWindowSize,
  ) where
 
 -- stdlib
@@ -158,6 +161,7 @@ import Graphics.UI.GLFW (
 import Graphics.GPipe.Context.GLFW.Handler (Handle(..))
 import Graphics.GPipe.Context.GLFW.Wrappers
 import qualified Graphics.GPipe.Context.GLFW.Calls as Call
+
 
 
 {- Keyboard -}
@@ -252,3 +256,11 @@ setClipboardString = wrapWindowFun Call.setClipboardString
 -- | Register or unregister a callback to receive file paths when files are dropped onto the window.
 setDropCallback :: MonadIO m => GPipe.Window os c ds -> Maybe ([String] -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
 setDropCallback = wrapCallbackSetter Call.setDropCallback
+
+
+
+{- Window Size -}
+
+getWindowSize :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe (Int, Int))
+getWindowSize = withWindowRPC Call.getWindowSize
+
