@@ -47,10 +47,10 @@ bitsToHints :: Maybe GPipe.WindowBits -> [GLFW.WindowHint]
 bitsToHints Nothing = [GLFW.WindowHint'Visible False]
 bitsToHints (Just ((red, green, blue, alpha, sRGB), depth, stencil)) =
     [ GLFW.WindowHint'sRGBCapable sRGB
-    , GLFW.WindowHint'RedBits red
-    , GLFW.WindowHint'GreenBits green
-    , GLFW.WindowHint'BlueBits blue
-    , GLFW.WindowHint'AlphaBits alpha
-    , GLFW.WindowHint'DepthBits depth
-    , GLFW.WindowHint'StencilBits stencil
+    , GLFW.WindowHint'RedBits $ Just red
+    , GLFW.WindowHint'GreenBits $ Just green
+    , GLFW.WindowHint'BlueBits $ Just blue
+    , GLFW.WindowHint'AlphaBits $ Just alpha
+    , GLFW.WindowHint'DepthBits $ Just depth
+    , GLFW.WindowHint'StencilBits $ Just stencil
     ]
