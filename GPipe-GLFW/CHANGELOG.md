@@ -1,6 +1,8 @@
-### Not yet versioned
+### 1.4.1.2
 
+* [Kludgy](https://github.com/LinuxUser404) bumped versions and resolver.
 * [LinuxUser404](https://github.com/LinuxUser404) bumped versions and added `cabal.project` & `.travis.yml`.
+* Set up travis builds with stack.
 
 ### 1.4.1.1
 
