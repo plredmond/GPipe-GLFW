@@ -1,4 +1,4 @@
-![](https://api.travis-ci.org/plredmond/GPipe-GLFW.png)
+[![Build Status](https://travis-ci.org/plredmond/GPipe-GLFW.svg?branch=master)](https://travis-ci.org/plredmond/GPipe-GLFW)
 
 # GPipe-GLFW
 
