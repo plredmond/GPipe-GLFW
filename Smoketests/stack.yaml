@@ -1,9 +1,4 @@
-flags: {}
-packages:
-- '.'
-- location: '..'
-  subdirs: [ GPipe-GLFW ]
-  extra-dep: true
 resolver: lts-13.27
 extra-deps:
+- ../GPipe-GLFW
 - GPipe-2.2.4

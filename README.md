@@ -1,3 +1,5 @@
+![](https://api.travis-ci.org/plredmond/GPipe-GLFW.png)
+
 # GPipe-GLFW
 
 **GPipe-GLFW** is a utility library to enable the use of [GLFW](http://www.glfw.org/)
