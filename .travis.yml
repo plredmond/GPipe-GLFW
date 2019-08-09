@@ -1,14 +1,22 @@
-language: haskell
+dist: xenial
+language: generic
+cache:
+  directories:
+  - $HOME/.stack # XXX what about .ghc and .cabal?
 addons:
   apt:
     packages:
-      - libglfw3-dev
-ghc:
-  - "8.4"
-  - "8.6"
+    - libgmp-dev # XXX for stack
+    - libglfw3-dev # XXX for GPipe
+# build once for each subppackage
 env:
-  - PACKAGEDIR="GPipe-GLFW/"
-  - PACKAGEDIR="Smoketests/"
-before_install: cd ${PACKAGEDIR}
+- PACKAGEDIR="GPipe-GLFW/"
+- PACKAGEDIR="Smoketests/"
+before_install:
+- mkdir -p ~/.local/bin
+- export PATH=$HOME/.local/bin:$PATH
+- travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+install:
+- stack --no-terminal --install-ghc test --only-dependencies
 script:
-  - cabal v2-build all
+- stack --no-terminal test --haddock --no-haddock-deps
