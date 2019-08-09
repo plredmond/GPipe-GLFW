@@ -6,9 +6,9 @@ addons:
 ghc:
   - "8.4"
   - "8.6"
-before_install:
-  - cabal install alex
-  - cabal install happy
-  - cabal install c2hs
+env:
+  - PACKAGEDIR="GPipe-GLFW/"
+  - PACKAGEDIR="Smoketests/"
+before_install: cd ${PACKAGEDIR}
 script:
   - cabal v2-build all
