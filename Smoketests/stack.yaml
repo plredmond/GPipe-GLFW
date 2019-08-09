@@ -4,5 +4,6 @@ packages:
 - location: '..'
   subdirs: [ GPipe-GLFW ]
   extra-dep: true
-extra-deps: []
-resolver: lts-9.0
+resolver: lts-13.27
+extra-deps:
+- GPipe-2.2.4
