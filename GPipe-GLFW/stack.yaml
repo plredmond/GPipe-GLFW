@@ -1,6 +1,5 @@
-flags: {}
 packages:
 - '.'
-extra-deps: []
 resolver: lts-13.27
-extra-package-dbs: []
+extra-deps:
+- GPipe-2.2.4

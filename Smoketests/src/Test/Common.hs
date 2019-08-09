@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types #-} -- For `forall` in projectLines
 {-# LANGUAGE TypeFamilies #-} -- For `forall` in projectLines
 module Test.Common where
