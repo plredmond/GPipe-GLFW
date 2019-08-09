@@ -1,3 +1,7 @@
+### Not yet versioned
+
+* [LinuxUser404](https://github.com/LinuxUser404) bumped versions and added `cabal.project` & `.travis.yml`.
+
 ### 1.4.1.1
 
 * Split changelog to own file (before this, it's located in README.md).
