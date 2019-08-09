@@ -10,3 +10,5 @@ before_install:
   - cabal install alex
   - cabal install happy
   - cabal install c2hs
+script:
+  - cabal v2-build all
