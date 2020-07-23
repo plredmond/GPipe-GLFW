@@ -1,3 +1,7 @@
+### 1.4.1.3
+
+* [MaciekFlis](https://github.com/MaciekFlis) bumped versions and resolver.
+
 ### 1.4.1.2
 
 * [Kludgy](https://github.com/LinuxUser404) bumped versions and resolver.
