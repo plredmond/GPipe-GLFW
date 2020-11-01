@@ -1,3 +1,8 @@
+### 1.4.1.4
+
+* [sorki](https://github.com/sorki) bumped versions.
+* Reworked the nix integration.
+
 ### 1.4.1.3
 
 * [MaciekFlis](https://github.com/MaciekFlis) bumped versions and resolver.
