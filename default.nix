@@ -26,7 +26,13 @@ let
         GPipe = overrideCabal (self.callHackage "GPipe" "2.2.5" { }) {
           jailbreak = true; # relies on an old version of linear
         };
-        GPipe-GLFW = self.callCabal2nix "GPipe-GLFW" (nixpkgs.nix-gitignore.gitignoreSource [ ] ./GPipe-GLFW) { };
+        GPipe-GLFW = overrideCabal (self.callCabal2nix "GPipe-GLFW" (nixpkgs.nix-gitignore.gitignoreSource [ ] ./GPipe-GLFW) { }) {
+          passthru = {
+            inherit nixpkgs;
+            inherit haskellPackages;
+            inherit projectPackages;
+          };
+        };
         Smoketests = self.callCabal2nix "Smoketests" (nixpkgs.nix-gitignore.gitignoreSource [ ] ./Smoketests) { };
       };
     });
