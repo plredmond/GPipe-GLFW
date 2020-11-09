@@ -1,3 +1,7 @@
+### UNRELEASED
+
+* add `setWindowSizeCallback`
+
 ### 1.4.1.4
 
 * [sorki](https://github.com/sorki) bumped versions.

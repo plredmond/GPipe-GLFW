@@ -25,6 +25,7 @@ setWindowCloseCallback,
 
 -- ** Window size
 getWindowSize,
+setWindowSizeCallback,
 
 -- ** Framebuffer size
 -- | Reexported from "Graphics.GPipe.Context".
@@ -52,6 +53,9 @@ import qualified Graphics.GPipe.Context.GLFW.Wrappers as Wrappers
 
 getWindowSize :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe (Int, Int))
 getWindowSize = Wrappers.withWindowRPC Call.getWindowSize
+
+setWindowSizeCallback :: MonadIO m => GPipe.Window os c ds -> Maybe (Int -> Int -> IO ()) -> GPipe.ContextT Handle os m (Maybe ())
+setWindowSizeCallback = Wrappers.wrapCallbackSetter Call.setWindowSizeCallback
 
 windowShouldClose :: MonadIO m => GPipe.Window os c ds -> GPipe.ContextT Handle os m (Maybe Bool)
 windowShouldClose = Wrappers.withWindow Call.windowShouldClose
