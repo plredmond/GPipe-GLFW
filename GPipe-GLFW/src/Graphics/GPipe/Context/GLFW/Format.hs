@@ -1,6 +1,3 @@
-{-# LANGUAGE GADTs #-} -- To pattern match on 'ContextFormat' constructors.
-{-# LANGUAGE DeriveAnyClass #-} -- To derive 'Exception' w/o a standalone declaration.
-{-# LANGUAGE FlexibleInstances #-} -- To derive 'Exception [WindowHint]'.
 -- | Internal module for generating and assessing GLFW hint lists
 module Graphics.GPipe.Context.GLFW.Format where
 
@@ -13,12 +10,10 @@ import Graphics.UI.GLFW (WindowHint(..))
 
 -- | IO Exception thrown when attempting to create a new window using GLFW
 -- hints which GPipe manages.
-data UnsafeWindowHintsException = UnsafeWindowHintsException [WindowHint]
-    deriving
-    ( Exception
-    , Show
-    )
-instance Exception [WindowHint]
+data UnsafeWindowHintsException
+    = UnsafeWindowHintsException [WindowHint]
+    deriving Show
+instance Exception UnsafeWindowHintsException
 
 allowedHint :: WindowHint -> Bool
 allowedHint (WindowHint'Visible _) = False

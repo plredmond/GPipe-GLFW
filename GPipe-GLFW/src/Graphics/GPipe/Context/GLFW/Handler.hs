@@ -1,7 +1,4 @@
 {-# LANGUAGE TypeFamilies #-} -- To define types in the ContextHandler instance
-{-# LANGUAGE DeriveAnyClass #-} -- To derive 'Exception' w/o a standalone declaration.
-{-# LANGUAGE TypeSynonymInstances #-} -- To derive 'Exception String'.
-{-# LANGUAGE FlexibleInstances #-} -- To derive 'Exception String'.
 -- | Internal module defining handler and its ContextHandler instance as well as some methods
 module Graphics.GPipe.Context.GLFW.Handler where
 
@@ -31,9 +28,6 @@ import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.RPC as RPC
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
 import Graphics.GPipe.Context.GLFW.Resource (defaultWindowConfig) -- in scope for haddock
-
-bug :: String -> IO ()
-bug s = Call.debug s >> throwIO s
 
 -- | Internal handle for a GPipe-created GLFW window/context
 data Context = Context
@@ -279,7 +273,7 @@ mainstepInternal :: Handle -> EventPolicy -> IO ()
 mainstepInternal handle eventPolicy = do
     tid <- myThreadId
     when (tid /= handleTid handle) $
-        bug "mainstep must be called from main thread"
+        throwIO $ MainstepOffMainException "mainstep must be called from main thread"
     case eventPolicy of
         Poll -> Call.pollEvents id -- id RPC because mainstepInternal is called only on mainthread
         Wait -> withAsync
@@ -322,11 +316,19 @@ mainloopInternal handle eventPolicy = do
 
 -- | IO exception thrown when GLFW library initialization fails.
 data InitException = InitException
-    deriving (Exception, Show)
+    deriving Show
+instance Exception InitException
 
 -- | IO Exception thrown when GLFW window creation fails.
 data CreateWindowException
     = CreateWindowException String
     | CreateSharedWindowException String
-    deriving (Exception, Show)
-instance Exception String
+    deriving Show
+instance Exception CreateWindowException
+
+-- | IO Exception thrown when application code calls a GPipe-GLFW incorrectly
+-- (eg. on the wrong thread).
+data UsageException
+    = MainstepOffMainException String
+    deriving Show
+instance Exception UsageException
