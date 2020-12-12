@@ -27,6 +27,7 @@ import qualified Graphics.GPipe.Context.GLFW.Calls as Call
 import qualified Graphics.GPipe.Context.GLFW.Format as Format
 import qualified Graphics.GPipe.Context.GLFW.RPC as RPC
 import qualified Graphics.GPipe.Context.GLFW.Resource as Resource
+import qualified Graphics.GPipe.Context.GLFW.Logger as Log
 import Graphics.GPipe.Context.GLFW.Resource (defaultWindowConfig) -- in scope for haddock
 
 -- | Internal handle for a GPipe-created GLFW window/context
@@ -56,6 +57,7 @@ data Handle = Handle
     , handleRaw :: GLFW.Window
     , handleCtxs :: TVar [MMContext]
     , handleEventPolicy :: Maybe EventPolicy
+    , handleLogger :: Log.Logger
     }
 
 -- | Opaque handle representing a, possibly closed, internal 'Context'. You'll
@@ -66,7 +68,7 @@ newtype GLFWWindow = WWindow (MMContext, Handle)
 withContext :: String -> MMContext -> (Context -> IO a) -> IO (Maybe a)
 withContext callerTag mmContext action = withMVar mmContext go
     where
-        go Nothing = Call.debug (printf "%s: GPipe-GLFW context already closed" callerTag) >> return Nothing
+        go Nothing = printf "WARNING %s: GPipe-GLFW context already closed" callerTag >> return Nothing
         go (Just context) = pure <$> action context
 
 -- | Template for "Run the action with XYZ /if the gpipe window still exists and ABC/."
@@ -75,7 +77,7 @@ unwrappingGPipeWindow :: MonadIO m
     -> String -> GPipe.Window os c ds -> action -> GPipe.ContextT Handle os m (Maybe a)
 unwrappingGPipeWindow specialize callerTag wid action = GPipe.withContextWindow wid go
     where
-        go Nothing = Call.debug (printf "%s: GPipe had no such window" callerTag) >> return Nothing
+        go Nothing = printf "WARNING %s: GPipe had no such window" callerTag >> return Nothing
         go (Just (WWindow (mmContext, handle))) = specialize callerTag action handle mmContext
 
 -- | Run the action with the context __handle__ /if the gpipe window still exists/.
@@ -104,11 +106,16 @@ onMain handle = RPC.fetchResult (handleComm handle)
 --
 -- * Print any errors that GLFW emits.
 -- * Automatically process GLFW events after every buffer swap.
+-- * Log only context handling activity which represents undesired conditions.
 defaultHandleConfig :: GPipe.ContextHandlerParameters Handle
-defaultHandleConfig = HandleConfig errorHandler $ pure Poll
-    where
-        -- TODO: swap printf for some logger
-        errorHandler err desc = printf "%s: %s\n" (show err) desc
+defaultHandleConfig = HandleConfig
+    { configErrorCallback = \err desc -> printf "%s: %s\n" (show err) desc
+    , configEventPolicy = pure Poll
+    , configLogger = Log.Logger
+        { Log.loggerLevel = Log.WARNING
+        , Log.loggerSink = Log.stderrSink
+        }
+    }
 
 instance GPipe.ContextHandler Handle where
 
@@ -120,6 +127,8 @@ instance GPipe.ContextHandler Handle where
           -- processing. Set to 'Nothing' to disable automatic event processing
           -- (you'll need to call 'mainloop' or 'mainstep').
         , configEventPolicy :: Maybe EventPolicy
+          -- | Configuration for emitting messages.
+        , configLogger :: Log.Logger
         }
 
     type ContextWindow Handle = GLFWWindow
@@ -130,7 +139,7 @@ instance GPipe.ContextHandler Handle where
     -- Create a context which shares objects with the contexts created by this
     -- handle, if any.
     createContext handle settings = do
-        window <- createWindow (Just $ handleRaw handle) settings
+        window <- createWindow (handleLogger handle) (Just $ handleRaw handle) settings
         mmContext <- newMVar . pure $ Context window
         atomically $ modifyTVar (handleCtxs handle) (mmContext :)
         return $ WWindow (mmContext, handle)
@@ -146,13 +155,13 @@ instance GPipe.ContextHandler Handle where
         -- (on main thread) Make the ancestor current if nothing else already is
         -- FIXME: these two bodies could be combined, perhaps.. the RPC is only necessary if the current thread lacks a context
         ccHuh <- Call.getCurrentContext
-        maybe (Call.makeContextCurrent "contextDoAsync required some context" . pure . handleRaw $ handle)
+        maybe (Call.makeContextCurrent (handleLogger handle) "contextDoAsync required some context" . pure $ handleRaw handle)
             (const $ return ())
             ccHuh
         action
-    contextDoAsync _ (Just (WWindow (mmContext, _))) action =
+    contextDoAsync _ (Just (WWindow (mmContext, handle))) action =
         void $ withContext "contextDoAsync" mmContext $ \context -> do
-            Call.makeContextCurrent "contextDoAsync required a specific context" . pure . contextRaw $ context
+            Call.makeContextCurrent (handleLogger handle) "contextDoAsync required a specific context" . pure . contextRaw $ context
             action
 
     -- Threading assumption: main thread
@@ -172,7 +181,7 @@ instance GPipe.ContextHandler Handle where
         maybe failure return result
         where
             failure = do
-                Call.debug $ printf "contextFrameBufferSize could not access context"
+                Call.say (handleLogger handle) Log.ERROR $ printf "contextFrameBufferSize could not access context"
                 return (0, 0)
 
     -- Threading assumption: same thread as contextCreate for the given context
@@ -184,9 +193,9 @@ instance GPipe.ContextHandler Handle where
     contextDelete _ (WWindow (mmContext, handle)) = do
         -- close the context mvar
         modifyMVar_ mmContext $ \mContext -> do
-            Call.debug $ printf "contextDelete of %s" (show $ contextRaw <$> mContext)
+            Call.say (handleLogger handle) Log.INFO $ printf "contextDelete of %s" (show $ contextRaw <$> mContext)
             forM_ mContext $ \context -> RPC.sendEffect (handleComm handle) $ do
-                Call.makeContextCurrent "contextDelete" . pure . contextRaw $ context
+                Call.makeContextCurrent (handleLogger handle) "contextDelete" . pure . contextRaw $ context
                 Call.destroyWindow id (contextRaw context) -- id RPC because this is in a mainthread RPC
             return Nothing
         -- remove the context from the handle
@@ -194,24 +203,29 @@ instance GPipe.ContextHandler Handle where
 
     -- Threading assumption: main thread
     contextHandlerCreate config = do
-        Call.debug "contextHandlerCreate"
+        Call.say (configLogger config) Log.DEBUG "contextHandlerCreate"
         -- make handle resources
         tid <- myThreadId
         comm <- RPC.newBound
         ctxs <- newTVarIO []
         -- initialize glfw
-        Call.setErrorCallback id $ pure errorHandler -- id RPC because contextHandlerCreate is called only on mainthread
+        Call.setErrorCallback id . pure $ configErrorCallback config -- id RPC because contextHandlerCreate is called only on mainthread
         ok <- Call.init id -- id RPC because contextHandlerCreate is called only on mainthread
         unless ok $ throwIO InitException
         -- wrap up handle
-        ancestor <- createWindow Nothing Nothing
-        return $ Handle tid comm ancestor ctxs eventPolicy
-        where
-            HandleConfig errorHandler eventPolicy = config
+        ancestor <- createWindow (configLogger config) Nothing Nothing
+        return $ Handle
+            { handleTid = tid
+            , handleComm = comm
+            , handleRaw = ancestor
+            , handleCtxs = ctxs
+            , handleEventPolicy = configEventPolicy config
+            , handleLogger = configLogger config
+            }
 
     -- Threading: main thread
     contextHandlerDelete handle = do
-        Call.debug "contextHandlerDelete"
+        Call.say (handleLogger handle) Log.DEBUG "contextHandlerDelete"
         ctxs <- readTVarIO $ handleCtxs handle
         forM_ ctxs $ \mmContext -> GPipe.contextDelete handle (WWindow (mmContext, handle))
         atomically $ writeTVar (handleCtxs handle) []
@@ -220,17 +234,17 @@ instance GPipe.ContextHandler Handle where
         Call.setErrorCallback id Nothing -- id RPC because contextHandlerDelete is called only on mainthread
 
 -- Create a raw GLFW window for use by contextHandlerCreate & createContext
-createWindow :: Maybe GLFW.Window -> Maybe (GPipe.WindowBits, Resource.WindowConfig) -> IO GLFW.Window
-createWindow parentHuh settings = do
+createWindow :: Log.Logger -> Maybe GLFW.Window -> Maybe (GPipe.WindowBits, Resource.WindowConfig) -> IO GLFW.Window
+createWindow logger parentHuh settings = do
     unless (null disallowedHints) $
         throwIO $ Format.UnsafeWindowHintsException disallowedHints
     -- make a context
     windowHuh <- Call.createWindow id width height title monitor hints parentHuh -- id RPC because contextHandlerCreate & createContext are called only on mainthread
-    Call.debug $ printf "made context %s -> parent %s" (show windowHuh) (show parentHuh)
+    Call.say logger Log.DEBUG $ printf "made context %s -> parent %s" (show windowHuh) (show parentHuh)
     window <- maybe exc return windowHuh
     -- set up context
     forM_ intervalHuh $ \interval -> do
-        Call.makeContextCurrent "apply vsync setting" $ pure window
+        Call.makeContextCurrent logger "apply vsync setting" $ pure window
         Call.swapInterval interval
     -- done
     return window

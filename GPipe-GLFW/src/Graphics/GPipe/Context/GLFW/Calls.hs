@@ -9,6 +9,8 @@ import qualified Text.Printf as Text
 import qualified Control.Concurrent as Conc
 -- thirdparty
 import qualified Graphics.UI.GLFW as GLFW
+-- local
+import Graphics.GPipe.Context.GLFW.Logger (Logger(), LogLevel(..), emitLog)
 
 -- TODO: change from using explicit OnMain functions to passing a handle which implements the appropriate class (effect or fetch result)
 -- TODO: maybe an OnMain monad would be good to reduce the number of RPCS? Not really necessary, since they can already be easily sequenced with IO
@@ -21,12 +23,13 @@ getCurrentContext = GLFW.getCurrentContext
 -- |
 -- * 2x This function may be called from any thread.
 -- * Reading and writing of the internal timer offset is not atomic, so it needs to be externally synchronized with calls to glfwSetTime.
-debug :: String -> IO ()
-debug msg = do
+say :: Logger -> LogLevel -> String -> IO ()
+say logger lvl msg = do
     t <- GLFW.getTime
     tid <- Conc.myThreadId
     c <- getCurrentContext
-    Text.printf "[%03.3fs, %s has %s]: %s\n" (maybe (0/0) id t) (show tid) (show c) msg
+    emitLog logger lvl $
+        Text.printf "[%03.3fs, %s has %s]: %s\n" (maybe (0/0) id t) (show tid) (show c) msg
 
 type OnMain a = IO a -> IO a
 type EffectMain = IO () -> IO ()
@@ -78,11 +81,11 @@ windowHints onMain hints = onMain $ GLFW.defaultWindowHints >> mapM_ GLFW.window
 
 -- |
 -- * This function may be called from any thread.
-makeContextCurrent :: String -> Maybe GLFW.Window -> IO ()
-makeContextCurrent reason windowHuh = do
+makeContextCurrent :: Logger -> String -> Maybe GLFW.Window -> IO ()
+makeContextCurrent logger reason windowHuh = do
     ccHuh <- getCurrentContext
     when (ccHuh /= windowHuh) $ do
-        debug $ Text.printf "attaching %s, reason: %s" (show windowHuh) reason
+        emitLog logger DEBUG $ Text.printf "attaching %s, reason: %s" (show windowHuh) reason
         GLFW.makeContextCurrent windowHuh
 
 -- | 

@@ -26,7 +26,7 @@ library
                      , async                  >= 2.1 && <2.3
                      , GLFW-b                 >= 3.2 && <3.4
                      , GPipe                  >= 2.2 && <2.5
-  ghc-options:         -Wall -Wno-orphans
+  ghc-options:         -Wall -Wno-orphans -Wall
   default-language:    Haskell2010
   exposed-modules:     Graphics.GPipe.Context.GLFW
                        Graphics.GPipe.Context.GLFW.Input
@@ -38,6 +38,7 @@ library
                        Graphics.GPipe.Context.GLFW.Format
                        Graphics.GPipe.Context.GLFW.Handler
                        Graphics.GPipe.Context.GLFW.RPC
+                       Graphics.GPipe.Context.GLFW.Logger
 
 source-repository head
   type:     git
