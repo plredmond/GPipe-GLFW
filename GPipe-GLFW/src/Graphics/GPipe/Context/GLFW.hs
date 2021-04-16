@@ -9,6 +9,7 @@ GLFWWindow(),
 -- ** Configuration
 -- *** Default configs
 defaultHandleConfig,
+defaultHandleConfigWithVersion,
 defaultWindowConfig,
 -- *** Custom configs
 ContextHandlerParameters(HandleConfig, configErrorCallback, configEventPolicy),

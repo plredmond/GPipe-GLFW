@@ -30,22 +30,22 @@ allowedHint (WindowHint'OpenGLForwardCompat _) = False
 allowedHint (WindowHint'OpenGLProfile _) = False
 allowedHint _ = True
 
-unconditionalHints :: [GLFW.WindowHint]
-unconditionalHints =
-    [ GLFW.WindowHint'ContextVersionMajor 3
-    , GLFW.WindowHint'ContextVersionMinor 3
-    , GLFW.WindowHint'OpenGLForwardCompat True
-    , GLFW.WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
+versionToHints :: (Int, Int) -> [GLFW.WindowHint]
+versionToHints (major, minor) =
+    [ WindowHint'ContextVersionMajor major
+    , WindowHint'ContextVersionMinor minor
+    , WindowHint'OpenGLForwardCompat True
+    , WindowHint'OpenGLProfile GLFW.OpenGLProfile'Core
     ]
 
 bitsToHints :: Maybe GPipe.WindowBits -> [GLFW.WindowHint]
 bitsToHints Nothing = [GLFW.WindowHint'Visible False]
 bitsToHints (Just ((red, green, blue, alpha, sRGB), depth, stencil)) =
-    [ GLFW.WindowHint'sRGBCapable sRGB
-    , GLFW.WindowHint'RedBits $ Just red
-    , GLFW.WindowHint'GreenBits $ Just green
-    , GLFW.WindowHint'BlueBits $ Just blue
-    , GLFW.WindowHint'AlphaBits $ Just alpha
-    , GLFW.WindowHint'DepthBits $ Just depth
-    , GLFW.WindowHint'StencilBits $ Just stencil
+    [ WindowHint'sRGBCapable sRGB
+    , WindowHint'RedBits $ Just red
+    , WindowHint'GreenBits $ Just green
+    , WindowHint'BlueBits $ Just blue
+    , WindowHint'AlphaBits $ Just alpha
+    , WindowHint'DepthBits $ Just depth
+    , WindowHint'StencilBits $ Just stencil
     ]
