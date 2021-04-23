@@ -30,8 +30,8 @@ allowedHint (WindowHint'OpenGLForwardCompat _) = False
 allowedHint (WindowHint'OpenGLProfile _) = False
 allowedHint _ = True
 
-versionToHints :: (Int, Int) -> [GLFW.WindowHint]
-versionToHints (major, minor) =
+versionToHints :: Int -> Int -> [GLFW.WindowHint]
+versionToHints major minor =
     [ WindowHint'ContextVersionMajor major
     , WindowHint'ContextVersionMinor minor
     , WindowHint'OpenGLForwardCompat True
