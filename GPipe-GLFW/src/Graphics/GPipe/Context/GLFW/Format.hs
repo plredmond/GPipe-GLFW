@@ -15,6 +15,11 @@ data UnsafeWindowHintsException
     deriving Show
 instance Exception UnsafeWindowHintsException
 
+data OpenGlVersion = OpenGlVersion
+    { openGlVersionMajor :: Int
+    , openGlVersionMinor :: Int
+    }
+
 allowedHint :: WindowHint -> Bool
 allowedHint (WindowHint'Visible _) = False
 allowedHint (WindowHint'sRGBCapable _) = False

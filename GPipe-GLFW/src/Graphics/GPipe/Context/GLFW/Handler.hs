@@ -39,11 +39,6 @@ data Context = Context
 -- | Closeable internal handle for 'Context'.
 type MMContext = MVar (Maybe Context)
 
-data OpenGlVersion = OpenGlVersion
-    { openGlVersionMajor :: Int
-    , openGlVersionMinor :: Int
-    }
-
 -- | Opaque handle representing the initialized GLFW library.
 --
 -- To get started quickly try 'defaultHandleConfig' and 'defaultWindowConfig'.
@@ -63,7 +58,7 @@ data Handle = Handle
     , handleCtxs :: TVar [MMContext]
     , handleEventPolicy :: Maybe EventPolicy
     , handleLogger :: Log.Logger
-    , handleOpenGlVersion :: OpenGlVersion
+    , handleOpenGlVersion :: Format.OpenGlVersion
     }
 
 -- | Opaque handle representing a, possibly closed, internal 'Context'. You'll
@@ -121,7 +116,7 @@ defaultHandleConfig = HandleConfig
         { Log.loggerLevel = Log.WARNING
         , Log.loggerSink = Log.stderrSink
         }
-    , configOpenGlVersion = OpenGlVersion 3 3
+    , configOpenGlVersion = Format.OpenGlVersion 3 3
     }
 
 instance GPipe.ContextHandler Handle where
@@ -142,7 +137,7 @@ instance GPipe.ContextHandler Handle where
           -- GPipe, not a per window choice to be made by the user. The user
           -- does have the possibily to set it at creation, but only because the
           -- GPipe API hasn’t been changed to provide this information.
-        , configOpenGlVersion :: OpenGlVersion
+        , configOpenGlVersion :: Format.OpenGlVersion
         }
 
     type ContextWindow Handle = GLFWWindow
@@ -249,7 +244,7 @@ instance GPipe.ContextHandler Handle where
         Call.setErrorCallback id Nothing -- id RPC because contextHandlerDelete is called only on mainthread
 
 -- Create a raw GLFW window for use by contextHandlerCreate & createContext
-createWindow :: Log.Logger -> OpenGlVersion -> Maybe GLFW.Window -> Maybe (GPipe.WindowBits, Resource.WindowConfig) -> IO GLFW.Window
+createWindow :: Log.Logger -> Format.OpenGlVersion -> Maybe GLFW.Window -> Maybe (GPipe.WindowBits, Resource.WindowConfig) -> IO GLFW.Window
 createWindow logger openGlVersion parentHuh settings = do
     unless (null disallowedHints) $
         throwIO $ Format.UnsafeWindowHintsException disallowedHints
@@ -268,7 +263,7 @@ createWindow logger openGlVersion parentHuh settings = do
         Resource.WindowConfig {Resource.configWidth=width, Resource.configHeight=height} = config
         Resource.WindowConfig _ _ title monitor _ intervalHuh = config
         (userHints, disallowedHints) = partition Format.allowedHint $ Resource.configHints config
-        versionHints = Format.versionToHints (openGlVersionMajor openGlVersion) (openGlVersionMinor openGlVersion)
+        versionHints = Format.versionToHints (Format.openGlVersionMajor openGlVersion) (Format.openGlVersionMinor openGlVersion)
         hints = userHints ++ Format.bitsToHints (fst <$> settings) ++ versionHints
         exc = throwIO . CreateSharedWindowException . show $ config {Resource.configHints = hints}
 
