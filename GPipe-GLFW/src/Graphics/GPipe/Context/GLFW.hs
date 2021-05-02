@@ -4,6 +4,7 @@
 -- Interactive applications will need "Graphics.GPipe.Context.GLFW.Input".
 module Graphics.GPipe.Context.GLFW (
 -- * GPipe context handler for GLFW
+OpenGlVersion(..),
 Handle(),
 GLFWWindow(),
 -- ** Configuration
@@ -11,7 +12,7 @@ GLFWWindow(),
 defaultHandleConfig,
 defaultWindowConfig,
 -- *** Custom configs
-ContextHandlerParameters(HandleConfig, configErrorCallback, configEventPolicy),
+ContextHandlerParameters(HandleConfig, configErrorCallback, configEventPolicy, configOpenGlVersion),
 -- | Configuration for the GLFW handle.
 --
 -- [@'HandleConfig'@] Constructor

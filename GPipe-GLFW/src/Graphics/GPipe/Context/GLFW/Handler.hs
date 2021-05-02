@@ -58,6 +58,7 @@ data Handle = Handle
     , handleCtxs :: TVar [MMContext]
     , handleEventPolicy :: Maybe EventPolicy
     , handleLogger :: Log.Logger
+    , handleOpenGlVersion :: Format.OpenGlVersion
     }
 
 -- | Opaque handle representing a, possibly closed, internal 'Context'. You'll
@@ -115,6 +116,7 @@ defaultHandleConfig = HandleConfig
         { Log.loggerLevel = Log.WARNING
         , Log.loggerSink = Log.stderrSink
         }
+    , configOpenGlVersion = Format.OpenGlVersion 3 3
     }
 
 instance GPipe.ContextHandler Handle where
@@ -129,6 +131,13 @@ instance GPipe.ContextHandler Handle where
         , configEventPolicy :: Maybe EventPolicy
           -- | Configuration for emitting messages.
         , configLogger :: Log.Logger
+          -- | The OpenGL version hinted at when creating contexts. Although
+          -- shared OpenGL contexts could use different versions, this setting
+          -- is only a way to store the minimal Core Profile version required by
+          -- GPipe, not a per window choice to be made by the user. The user
+          -- does have the possibily to set it at creation, but only because the
+          -- GPipe API hasn’t been changed to provide this information.
+        , configOpenGlVersion :: Format.OpenGlVersion
         }
 
     type ContextWindow Handle = GLFWWindow
@@ -139,7 +148,7 @@ instance GPipe.ContextHandler Handle where
     -- Create a context which shares objects with the contexts created by this
     -- handle, if any.
     createContext handle settings = do
-        window <- createWindow (handleLogger handle) (Just $ handleRaw handle) settings
+        window <- createWindow (handleLogger handle) (handleOpenGlVersion handle) (Just $ handleRaw handle) settings
         mmContext <- newMVar . pure $ Context window
         atomically $ modifyTVar (handleCtxs handle) (mmContext :)
         return $ WWindow (mmContext, handle)
@@ -213,7 +222,7 @@ instance GPipe.ContextHandler Handle where
         ok <- Call.init id -- id RPC because contextHandlerCreate is called only on mainthread
         unless ok $ throwIO InitException
         -- wrap up handle
-        ancestor <- createWindow (configLogger config) Nothing Nothing
+        ancestor <- createWindow (configLogger config) (configOpenGlVersion config) Nothing Nothing
         return $ Handle
             { handleTid = tid
             , handleComm = comm
@@ -221,6 +230,7 @@ instance GPipe.ContextHandler Handle where
             , handleCtxs = ctxs
             , handleEventPolicy = configEventPolicy config
             , handleLogger = configLogger config
+            , handleOpenGlVersion = configOpenGlVersion config
             }
 
     -- Threading: main thread
@@ -234,8 +244,8 @@ instance GPipe.ContextHandler Handle where
         Call.setErrorCallback id Nothing -- id RPC because contextHandlerDelete is called only on mainthread
 
 -- Create a raw GLFW window for use by contextHandlerCreate & createContext
-createWindow :: Log.Logger -> Maybe GLFW.Window -> Maybe (GPipe.WindowBits, Resource.WindowConfig) -> IO GLFW.Window
-createWindow logger parentHuh settings = do
+createWindow :: Log.Logger -> Format.OpenGlVersion -> Maybe GLFW.Window -> Maybe (GPipe.WindowBits, Resource.WindowConfig) -> IO GLFW.Window
+createWindow logger openGlVersion parentHuh settings = do
     unless (null disallowedHints) $
         throwIO $ Format.UnsafeWindowHintsException disallowedHints
     -- make a context
@@ -249,11 +259,12 @@ createWindow logger parentHuh settings = do
     -- done
     return window
     where
-        config = fromMaybe (defaultWindowConfig "") (snd <$> settings)
+        config = maybe (defaultWindowConfig "") snd settings
         Resource.WindowConfig {Resource.configWidth=width, Resource.configHeight=height} = config
         Resource.WindowConfig _ _ title monitor _ intervalHuh = config
         (userHints, disallowedHints) = partition Format.allowedHint $ Resource.configHints config
-        hints = userHints ++ Format.bitsToHints (fst <$> settings) ++ Format.unconditionalHints
+        versionHints = Format.versionToHints (Format.openGlVersionMajor openGlVersion) (Format.openGlVersionMinor openGlVersion)
+        hints = userHints ++ Format.bitsToHints (fst <$> settings) ++ versionHints
         exc = throwIO . CreateSharedWindowException . show $ config {Resource.configHints = hints}
 
 -- | Type to describe the waiting or polling style of event processing
