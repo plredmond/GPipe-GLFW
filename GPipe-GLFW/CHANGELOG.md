@@ -6,6 +6,8 @@
   `ContextHandlerParameters Handler`/`HandleConfig` data constructor.
 * Suppress debug logging by default. Turn it back on with
   `defaultHandleConfig{configEnableDebug = True}` config.
+* [chatanga](https://github.com/Chatanga) reworked how OpenGL hints are set,
+  allowing the user to specify versions beyond the defaults.
 
 ### 1.4.1.4
 
