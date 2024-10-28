@@ -12,7 +12,7 @@ GLFWWindow(),
 defaultHandleConfig,
 defaultWindowConfig,
 -- *** Custom configs
-ContextHandlerParameters(HandleConfig, configErrorCallback, configEventPolicy, configOpenGlVersion),
+ContextHandlerParameters(..),
 -- | Configuration for the GLFW handle.
 --
 -- [@'HandleConfig'@] Constructor
