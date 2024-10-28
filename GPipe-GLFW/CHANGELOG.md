@@ -1,4 +1,4 @@
-### 2.0.0 -- UNRELEASED
+### 2.0.0
 
 * Add `setWindowSizeCallback` so that it is no longer necessary to poll for
   window size changes.
@@ -8,6 +8,8 @@
   `defaultHandleConfig{configEnableDebug = True}` config.
 * [chatanga](https://github.com/Chatanga) reworked how OpenGL hints are set,
   allowing the user to specify versions beyond the defaults.
+* [mrehayden1](https://github.com/mrehayden1) exposed the config to toggle
+  logging.
 
 ### 1.4.1.4
 
