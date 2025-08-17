@@ -1,7 +1,7 @@
 { mkEnv ? null
 , target ? "GPipe-GLFW"
 , config ? { allowBroken = true; }
-, nixpkgs ? import <nixpkgs> { inherit config; }
+, nixpkgs ? import <nixos-23.11> { inherit config; }
 , ...
 }:
 let
